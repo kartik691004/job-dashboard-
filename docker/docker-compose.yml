@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  fastapi-backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: startup_intelligence_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - EXCEL_OUTPUT_PATH=/app/excel/Indian_Startup_Outreach.xlsx
+      - LOG_FILE_PATH=/app/logs/pipeline_execution.log
+      - DB_PATH=/app/data/ftb_store.db
+    volumes:
+      - ../excel:/app/excel
+      - ../logs:/app/logs
+      - ../data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: startup_outreach_n8n
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      fastapi-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  n8n_data:

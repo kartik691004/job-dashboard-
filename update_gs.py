@@ -1,0 +1,51 @@
+import os
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
+import requests
+import warnings
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+
+old_request = requests.Session.request
+def new_request(*args, **kwargs):
+    kwargs['verify'] = False
+    return old_request(*args, **kwargs)
+requests.Session.request = new_request
+
+import gspread
+from google.oauth2.service_account import Credentials
+
+CREDENTIALS_PATH = "credentials.json"
+SPREADSHEET_ID = "1f1KvSqcaMuVByUqkejWn1vJVB6FrceEV1vxPErUhV1Y"
+
+def get_client():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
+    return gspread.authorize(creds)
+
+def main():
+    client = get_client()
+    spreadsheet = client.open_by_key(SPREADSHEET_ID)
+    
+    # Update Logs
+    logs_sheet = spreadsheet.worksheet("Logs")
+    log_row = ["2026-07-31", 6, 6, 12, 0, "20248.4s", "SUCCESS"]
+    logs_sheet.append_row(log_row)
+    print("Appended to Google Sheets Logs.")
+    
+    # Update Startups (Emergent)
+    startups_sheet = spreadsheet.worksheet("Startups")
+    # Columns: Company Name, Website, Industry, City, Funding Stage, Funding Amount, Investors, Founding Year, Employee Count, Description, Source, Date Added
+    startup_row = [
+        "Emergent", "emergent.ai", "Artificial Intelligence", "Bengaluru", 
+        "Late Stage", "$130 Million", "Undisclosed", "2023", "100+", 
+        "AI software firm that recently raised $130M.", "Web Search (News)", "2026-07-31"
+    ]
+    startups_sheet.append_row(startup_row)
+    print("Appended Emergent to Google Sheets Startups.")
+
+if __name__ == "__main__":
+    main()

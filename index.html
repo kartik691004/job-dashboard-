@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Indian Startup Intelligence & Outreach Automation Control Hub</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --text-muted: #8b949e;
+      --green: #238636;
+      --green-bright: #3fb950;
+      --blue: #58a6ff;
+      --yellow: #d29922;
+      --purple: #bc8cff;
+      --font: 'Inter', system-ui, sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; padding: 1.5rem; }
+
+    header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem; }
+    .title { font-size: 1.25rem; font-weight: 700; color: var(--text-bright); display: flex; align-items: center; gap: 0.5rem; }
+    .badge-status { background: rgba(63, 185, 80, 0.15); color: var(--green-bright); border: 1px solid rgba(63, 185, 80, 0.4); padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .badge-error { background: rgba(218, 54, 51, 0.15); color: #f85149; border: 1px solid rgba(218, 54, 51, 0.4); padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+
+    .btn { background: #21262d; color: var(--text-bright); border: 1px solid var(--border); padding: 0.45rem 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .btn:hover { background: #30363d; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-green { background: var(--green); border-color: rgba(240, 246, 252, 0.1); }
+    .btn-green:hover { background: #2ea043; }
+
+    .grid-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi-box { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+    .kpi-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+    .kpi-val { font-size: 1.5rem; font-weight: 700; color: var(--text-bright); margin-top: 0.2rem; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+    .panel-title { font-size: 1rem; font-weight: 700; color: var(--text-bright); display: flex; align-items: center; gap: 0.5rem; }
+
+    .tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; overflow-x: auto; }
+    .tab-btn { background: transparent; border: 1px solid transparent; color: var(--text-muted); padding: 0.4rem 0.75rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
+    .tab-btn:hover { color: var(--text-bright); background: #21262d; }
+    .tab-btn.active { color: var(--green-bright); background: rgba(63, 185, 80, 0.1); border-color: rgba(63, 185, 80, 0.3); }
+
+    .sheet-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: #010409; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; }
+    th { background: #161b22; color: var(--green-bright); padding: 0.6rem 0.75rem; border: 1px solid var(--border); font-family: var(--font-code); font-weight: 600; }
+    td { padding: 0.6rem 0.75rem; border: 1px solid var(--border); background: #0d1117; font-family: var(--font-code); }
+    tr:nth-child(even) td { background: #161b22; }
+
+    .link { color: var(--blue); text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+
+    .console-box { background: #010409; border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; font-family: var(--font-code); font-size: 0.8rem; height: 200px; overflow-y: auto; color: var(--text-muted); }
+    .log-entry { margin-bottom: 0.25rem; }
+    .log-ok { color: var(--green-bright); }
+    .log-info { color: var(--blue); }
+    .log-error { color: #f85149; }
+
+    .code-box { background: #010409; border: 1px solid var(--border); border-radius: 4px; padding: 1rem; font-family: var(--font-code); font-size: 0.82rem; color: #e6edf3; overflow-x: auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .empty-state { padding: 2rem; text-align: center; color: var(--text-muted); font-style: italic; }
+    .error-state { padding: 2rem; text-align: center; color: #f85149; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--green-bright); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title">
+      <span>AI Indian Startup Intelligence & Outreach Automation</span>
+      <span class="badge-status" id="api-status">Loading...</span>
+    </div>
+    <div style="display:flex; gap:0.5rem;">
+      <button class="btn btn-green" id="btn-run" onclick="runPipeline()">
+        <span id="run-label">Run Pipeline</span>
+      </button>
+      <a class="btn" id="btn-export" href="/export" style="text-decoration:none;" download>
+        Download Excel
+      </a>
+    </div>
+  </header>
+
+  <div class="grid-summary">
+    <div class="kpi-box">
+      <div class="kpi-title">Excel Target</div>
+      <div class="kpi-val" style="font-size:0.95rem; color:var(--green-bright); word-break:break-all;">excel/Indian_Startup_Outreach.xlsx</div>
+      <span style="font-size:0.75rem; color:var(--text-muted);">6 Sheets — Funding & Founder Intel</span>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-title">Funded Startups</div>
+      <div class="kpi-val" id="count-startups">-</div>
+      <span style="font-size:0.75rem; color:var(--green-bright);">2025+ Funding, Priority Sorted</span>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-title">Founders & Contacts</div>
+      <div class="kpi-val" id="count-contacts">-</div>
+      <span style="font-size:0.75rem; color:var(--blue);">LinkedIn, Email, Role</span>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-title">Pipeline Runs</div>
+      <div class="kpi-val" id="count-runs">Daily 1AM</div>
+      <span style="font-size:0.75rem; color:var(--purple);">Auto-refresh existing + new</span>
+    </div>
+  </div>
+
+  <!-- Excel Multi-Sheet Preview -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>Live 6-Sheet Excel Preview — Funding & Founder Intelligence</span>
+      </div>
+      <span style="font-size:0.75rem; color:var(--text-muted);">Auto-Sorted by Priority Score</span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('startups')">1. Startups</button>
+      <button class="tab-btn" onclick="switchTab('funding')">2. Funding Rounds</button>
+      <button class="tab-btn" onclick="switchTab('founders')">3. Founders & Leadership</button>
+      <button class="tab-btn" onclick="switchTab('contacts')">4. Key Contacts</button>
+      <button class="tab-btn" onclick="switchTab('linkedin')">5. LinkedIn Profiles</button>
+      <button class="tab-btn" onclick="switchTab('logs')">6. Logs</button>
+    </div>
+
+    <div id="tab-startups" class="tab-content active">
+      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Industry</th><th>Funding Stage</th><th>Funding Amount</th><th>Investors</th><th>City</th><th>Website</th></tr></thead><tbody id="tbody-startups"><tr><td colspan="8" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+    <div id="tab-funding" class="tab-content">
+      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Round</th><th>Amount</th><th>Date</th><th>Lead Investor</th><th>Co-Investors</th></tr></thead><tbody id="tbody-funding"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+    <div id="tab-founders" class="tab-content">
+      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Founder</th><th>CEO</th><th>Position</th><th>LinkedIn</th><th>Email</th></tr></thead><tbody id="tbody-founders"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+    <div id="tab-contacts" class="tab-content">
+      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Contact</th><th>Role</th><th>Department</th><th>LinkedIn</th><th>Email</th></tr></thead><tbody id="tbody-contacts"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+    <div id="tab-linkedin" class="tab-content">
+      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Name</th><th>Role</th><th>LinkedIn URL</th></tr></thead><tbody id="tbody-linkedin"><tr><td colspan="5" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+    <div id="tab-logs" class="tab-content">
+      <div class="sheet-wrapper"><table><thead><tr><th>Date</th><th>Found</th><th>Added</th><th>Contacts</th><th>Errors</th><th>Duration</th><th>Status</th></tr></thead><tbody id="tbody-logs"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- FastAPI Endpoints & Console -->
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <div class="panel" style="margin-bottom:0;">
+      <div class="panel-header">
+        <div class="panel-title">API Endpoint Registry</div>
+      </div>
+      <div class="code-box">
+<span style="color:var(--blue);">REST API Routes (Port 8000):</span>
+• GET  /health         Health check
+• GET  /startups       Discovered Indian startups (2025+ funding, priority sorted)
+• GET  /founders       Founders, CEO, CTO, COO with LinkedIn & email
+• GET  /contacts       HR, tech leads, management with LinkedIn & email
+• GET  /export         Download 6-sheet Excel workbook
+• POST /run            Trigger funding & founder intelligence pipeline
+• GET  /schedule/status Daily 1AM IST scheduler status
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:0;">
+      <div class="panel-header">
+        <div class="panel-title">System Console</div>
+        <button class="btn" style="font-size:0.7rem;" onclick="clearConsole()">Clear</button>
+      </div>
+      <div class="console-box" id="console"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let isRunning = false;
+
+    function log(msg, cls = 'log-ok') {
+      const consoleBox = document.getElementById('console');
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'log-entry ' + cls;
+      div.textContent = '[' + time + '] ' + msg;
+      consoleBox.appendChild(div);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('console').innerHTML = '';
+    }
+
+    function setApiStatus(online) {
+      const el = document.getElementById('api-status');
+      if (online) {
+        el.textContent = 'API Online';
+        el.className = 'badge-status';
+      } else {
+        el.textContent = 'API Offline';
+        el.className = 'badge-error';
+      }
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderTable(tbodyId, rows, columns) {
+      const tbody = document.getElementById(tbodyId);
+      if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="' + columns + '" class="empty-state">No data available</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        Object.values(row).forEach(val => {
+          const td = document.createElement('td');
+          if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
+            const a = document.createElement('a');
+            a.href = escapeHtml(val);
+            a.target = '_blank';
+            a.className = 'link';
+            a.textContent = val.length > 40 ? val.substring(0, 40) + '...' : val;
+            td.appendChild(a);
+          } else {
+            td.textContent = val;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function fetchJson(url) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    }
+
+    async function loadDashboard() {
+      try {
+        const data = await fetchJson(API_BASE + '/dashboard');
+        setApiStatus(true);
+        const sheets = data.sheets || {};
+
+        if (sheets.startups) renderTable('tbody-startups', sheets.startups, 9);
+        if (sheets['Funding Rounds']) renderTable('tbody-funding', sheets['Funding Rounds'], 7);
+        if (sheets['Founders & Leadership']) renderTable('tbody-founders', sheets['Founders & Leadership'], 8);
+        if (sheets['Key Contacts']) renderTable('tbody-contacts', sheets['Key Contacts'], 7);
+        if (sheets['LinkedIn Profiles']) renderTable('tbody-linkedin', sheets['LinkedIn Profiles'], 5);
+        if (sheets.logs) renderTable('tbody-logs', sheets.logs, 7);
+
+        document.getElementById('count-startups').textContent = sheets.startups ? sheets.startups.length : '-';
+        const founders = sheets['Founders & Leadership'] ? sheets['Founders & Leadership'].length : 0;
+        const contacts = sheets['Key Contacts'] ? sheets['Key Contacts'].length : 0;
+        document.getElementById('count-contacts').textContent = (founders + contacts) || '-';
+      } catch (e) {
+        setApiStatus(false);
+        log('Failed to load dashboard: ' + e.message, 'log-error');
+      }
+    }
+
+    async function runPipeline() {
+      if (isRunning) return;
+      isRunning = true;
+      const btn = document.getElementById('btn-run');
+      const label = document.getElementById('run-label');
+      btn.disabled = true;
+      label.innerHTML = '<span class="spinner"></span> Running...';
+
+      log('Triggering pipeline via POST /run...', 'log-info');
+      try {
+        const result = await fetch(API_BASE + '/run?limit=10', { method: 'POST' });
+        if (!result.ok) throw new Error('HTTP ' + result.status);
+        const data = await result.json();
+        log('Pipeline completed: ' + (data.status || 'SUCCESS'), 'log-ok');
+        setTimeout(loadDashboard, 2000);
+      } catch (e) {
+        log('Pipeline failed: ' + e.message, 'log-error');
+      } finally {
+        isRunning = false;
+        btn.disabled = false;
+        label.textContent = 'Run Pipeline';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      log('Control hub initialised. Connecting to ' + window.location.origin, 'log-info');
+      loadDashboard();
+      setInterval(loadDashboard, 30000);
+    });
+  </script>
+</body>
+</html>
