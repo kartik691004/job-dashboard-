@@ -1,0 +1,114 @@
+DRY_RUN=False  GEO_FILTER=india
+Apify spend this cycle BEFORE: $2.1133
+
+Bound worksheet 'LinkedIn Hiring Leads' (gid=1595484679, index=1).
+Existing headers match expected schema.
+========================================================================
+STEP 1 — fresh India-targeted scrape
+========================================================================
+Starting pipeline...
+Scraping 24 geo-targeted keywords in a single run (date_filter=past-week, max_posts_per_keyword=10, geo_filter=india)
+  Estimated ceiling: 240 posts, ~$0.37
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> Status: RUNNING, Message: 
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:03.361Z [33mACTOR: [39mPulling container image of build LtmbKd0cE0cdg3E1X from registry.
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:03.363Z [33mACTOR: [39mCreating container.
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:03.518Z [33mACTOR: [39mStarting container.
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:03.519Z [33mACTOR: [39mRunning under "LIMITED_PERMISSIONS".
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.692Z [32mINFO[39m  System info[90m {"apifyVersion":"3.7.1","apifyClientVersion":"2.23.1","crawleeVersion":"3.16.0","osType":"Linux","nodeVersion":"v24.15.0"}[39m
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.762Z [33mWARN[39m  Unable to get Apify user's data; assigning random run (run_jNZwPzeJHK4J). ApifyApiError: Insufficient permissions. Make sure you're passing a correct API token and that it has the required permissions.
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.869Z [32mINFO[39m  📦 Total keywords: 24 | 📄 Max per item: 10
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.869Z [32mINFO[39m  🔍 Starting posts search for keyword: chief of staff India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.870Z [32mINFO[39m  🔍 Starting posts search for keyword: chief of staff Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:04.871Z [32mINFO[39m  🔍 Starting posts search for keyword: founder's office India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:07.589Z [32mINFO[39m  ✅ Successfully scraped 10 posts for chief of staff India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:07.589Z [32mINFO[39m  🔍 Starting posts search for keyword: founder's office Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:10.103Z [32mINFO[39m  ✅ Successfully scraped 10 posts for chief of staff Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:10.104Z [32mINFO[39m  🔍 Starting posts search for keyword: founder's office Mumbai
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:13.078Z [32mINFO[39m  ✅ Successfully scraped 10 posts for founder's office India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:13.078Z [32mINFO[39m  🔍 Starting posts search for keyword: founder associate India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:16.823Z [32mINFO[39m  ✅ Successfully scraped 10 posts for founder's office Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:16.824Z [32mINFO[39m  🔍 Starting posts search for keyword: business generalist India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:18.417Z [32mINFO[39m  ✅ Successfully scraped 10 posts for founder's office Mumbai
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:18.418Z [32mINFO[39m  🔍 Starting posts search for keyword: strategy and operations India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:21.718Z [32mINFO[39m  ✅ Successfully scraped 10 posts for founder associate India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:21.719Z [32mINFO[39m  🔍 Starting posts search for keyword: product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:24.698Z [32mINFO[39m  ✅ Successfully scraped 10 posts for business generalist India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:24.699Z [32mINFO[39m  🔍 Starting posts search for keyword: product manager Bengaluru
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:26.145Z [32mINFO[39m  ✅ Successfully scraped 10 posts for strategy and operations India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:26.148Z [32mINFO[39m  🔍 Starting posts search for keyword: product manager Mumbai
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:28.615Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:28.616Z [32mINFO[39m  🔍 Starting posts search for keyword: product manager Gurgaon
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:31.113Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product manager Bengaluru
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:31.113Z [32mINFO[39m  🔍 Starting posts search for keyword: product manager Hyderabad
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:33.549Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product manager Mumbai
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:33.549Z [32mINFO[39m  🔍 Starting posts search for keyword: associate product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:37.800Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product manager Gurgaon
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:37.800Z [32mINFO[39m  🔍 Starting posts search for keyword: senior product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:39.099Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product manager Hyderabad
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:39.099Z [32mINFO[39m  🔍 Starting posts search for keyword: head of product India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:41.514Z [32mINFO[39m  ✅ Successfully scraped 10 posts for associate product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:41.514Z [32mINFO[39m  🔍 Starting posts search for keyword: product owner India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:44.402Z [32mINFO[39m  ✅ Successfully scraped 10 posts for senior product manager India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:44.404Z [32mINFO[39m  🔍 Starting posts search for keyword: game developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:51.500Z [32mINFO[39m  ✅ Successfully scraped 10 posts for head of product India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:51.501Z [32mINFO[39m  🔍 Starting posts search for keyword: game developer Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:52.404Z [32mINFO[39m  ✅ Successfully scraped 10 posts for product owner India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:52.404Z [32mINFO[39m  🔍 Starting posts search for keyword: unity developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:52.933Z [32mINFO[39m  ✅ Successfully scraped 10 posts for game developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:52.933Z [32mINFO[39m  🔍 Starting posts search for keyword: unreal developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:55.022Z [32mINFO[39m  ✅ Successfully scraped 10 posts for game developer Bangalore
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:55.023Z [32mINFO[39m  🔍 Starting posts search for keyword: game designer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:58.025Z [32mINFO[39m  ✅ Successfully scraped 10 posts for unity developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:15:58.026Z [32mINFO[39m  🔍 Starting posts search for keyword: game programmer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:00.202Z [32mINFO[39m  ✅ Successfully scraped 10 posts for unreal developer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:00.203Z [32mINFO[39m  🔍 Starting posts search for keyword: game studio India hiring
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:02.598Z [32mINFO[39m  ✅ Successfully scraped 10 posts for game designer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:05.199Z [32mINFO[39m  ✅ Successfully scraped 10 posts for game programmer India
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:08.299Z [32mINFO[39m  ✅ Successfully scraped 10 posts for game studio India hiring
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> 2026-08-23T12:16:08.300Z [32mINFO[39m  🎉 Finished processing keywords.
+[36m[apify.linkedin-posts-search-scraper runId:bRHG6xAEiLFgdkfGJ][0m -> Status: SUCCEEDED, Message: 
+Saved 81 classified leads to data\runs\2026-08-23T121618Z_leads.json
+Successfully wrote 81 rows to 'LinkedIn Hiring Leads'.
+
+Run Summary
+-----------
+Scraped:                  240
+Unique:                   220
+Valid hiring signals:     81
+Excluded:                 139
+  ...of which non-India:  0
+Current-run duplicates:   20
+Existing Sheet duplicates:0
+New rows:                 81
+Errors:                   0
+
+========================================================================
+STEP 2 — backfill India leads from already-paid dataset bjw12HheoKS3wjoyW
+========================================================================
+Recovered 265 unique posts from the earlier dataset.
+29 pass hiring + India classification.
+3 already in the Sheet; 26 new.
+Saved backfill artifact to data\runs\2026-08-23T121621Z_leads.json
+Successfully wrote 26 rows to 'LinkedIn Hiring Leads'.
+
+========================================================================
+TOTALS
+========================================================================
+Step 1 fresh rows written : 81
+Step 2 backfill rows      : 26
+TOTAL ROWS WRITTEN        : 107
+Apify spend this run      : $0.3720
+Apify spend this cycle    : $2.4853 of $5.00 cap
+Remaining this cycle      : $2.5147
+{
+  "scraped": 240,
+  "unique": 220,
+  "valid": 81,
+  "excluded": 139,
+  "geo_excluded": 0,
+  "current_run_duplicates": 20,
+  "sheet_duplicates": 0,
+  "new_rows": 81,
+  "errors": 0,
+  "artifact": "data\\runs\\2026-08-23T121618Z_leads.json"
+}

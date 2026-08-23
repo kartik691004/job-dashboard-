@@ -16,7 +16,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 CREDENTIALS_PATH = "credentials.json"
-SPREADSHEET_ID = "1f1KvSqcaMuVByUqkejWn1vJVB6FrceEV1vxPErUhV1Y"
+SPREADSHEET_ID = "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis"
 
 def get_client():
     scopes = [

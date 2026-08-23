@@ -6,17 +6,36 @@ from datetime import datetime, timezone
 from typing import List, Set
 from app.models import ClassifiedPost
 
+# The 19-column txt-spec layout. Single source of truth: _ensure_headers verifies
+# against it and the one-time migration tool writes it.
+EXPECTED_HEADERS = [
+    "Company Name",
+    "Major Category",
+    "Exact Role",
+    "CTC",
+    "Cold Email",
+    "Hiring Manager Name",
+    "Hiring Manager LinkedIn",
+    "Source Link",
+    "Description",
+    "Confidence Score",
+    "Location",
+    "Type",
+    "Experience Requirement",
+    "Market",
+    "India Relevance",
+    "Post Date",
+    "Scraped At",
+    "Classification Reason",
+    "Status",
+]
 
 def _safe_print(text: str) -> None:
     """Print text safely on any platform, replacing unencodable characters."""
     print(text.encode("utf-8", errors="replace").decode("utf-8", errors="replace"))
 
-
 def _with_retry(fn, attempts: int = 4, base_delay: float = 5.0):
-    """Retry a Google API call against transient 403/5xx errors.
-
-    Returns the call result; re-raises the last error when all attempts fail.
-    """
+    """Retry a Google API call against transient 403/5xx errors."""
     last_error = None
     for i in range(attempts):
         try:
@@ -27,7 +46,6 @@ def _with_retry(fn, attempts: int = 4, base_delay: float = 5.0):
             if i < attempts - 1:
                 time.sleep(base_delay * (i + 1))
     raise last_error
-
 
 class SheetsWriter:
     def __init__(self, credentials_path: str, sheet_id: str, worksheet_name: str, dry_run: bool = True):
@@ -51,7 +69,7 @@ class SheetsWriter:
                         print(f"Worksheet '{self.worksheet_name}' not found. It will be created during production write (DRY_RUN=false).")
                         self.worksheet = None
                     else:
-                        self.worksheet = sheet.add_worksheet(title=self.worksheet_name, rows="1000", cols="15")
+                        self.worksheet = sheet.add_worksheet(title=self.worksheet_name, rows="1000", cols="19")
                         print(f"Created worksheet '{self.worksheet_name}'.")
                         self._ensure_headers()
             except Exception as e:
@@ -63,12 +81,7 @@ class SheetsWriter:
             self.dry_run = True
 
     def _ensure_headers(self):
-        expected_headers = [
-            "Post URL", "Post Date", "Scraped At", "Role Category",
-            "Employment Type", "Detected Role Title", "Company", "Author Name",
-            "Author Profile URL", "Matched Role Keywords", "Hiring Intent Signals",
-            "Confidence", "Post Snippet", "Classification Reason", "Status"
-        ]
+        expected_headers = EXPECTED_HEADERS
         try:
             headers = self.worksheet.row_values(1)
         except Exception as e:
@@ -89,7 +102,8 @@ class SheetsWriter:
                 print(f"CRITICAL ERROR: Existing headers do not match expected schema.")
                 print(f"Expected: {expected_headers}")
                 print(f"Found: {headers}")
-                raise ValueError("Header schema mismatch")
+                if not self.dry_run:
+                    raise ValueError("Header schema mismatch. Please update or clear the worksheet headers before a live run.")
             else:
                 print("Existing headers match expected schema.")
 
@@ -98,8 +112,8 @@ class SheetsWriter:
             return set()
 
         try:
-            # Column A is Post URL (index 1)
-            urls = self.worksheet.col_values(1)
+            # Column 8 is Source Link
+            urls = self.worksheet.col_values(8)
             return set(urls[1:])  # Skip header row
         except Exception as e:
             print(f"Error fetching existing URLs: {e}")
@@ -110,23 +124,25 @@ class SheetsWriter:
             return
 
         rows = []
-        scraped_at = datetime.now(timezone.utc).isoformat()
-
         for post in posts:
             rows.append([
-                post.post_url,
-                post.post_date,
-                scraped_at,
-                post.role_category,
-                post.employment_type,
-                post.detected_role_title,
-                post.company,
-                post.author_name,
-                post.author_profile_url,
-                post.matched_role_keywords,
-                post.hiring_intent_signals,
+                post.company_name,
+                post.major_category,
+                post.exact_role,
+                post.ctc,
+                post.cold_email,
+                post.hiring_manager_name,
+                post.hiring_manager_linkedin,
+                post.source_link,
+                post.description,
                 post.confidence,
-                post.post_snippet,
+                post.location,
+                post.employment_type,
+                post.experience_requirement,
+                post.market,
+                post.india_relevance,
+                post.post_date,
+                post.scraped_at,
                 post.classification_reason,
                 post.status,
             ])
@@ -141,4 +157,3 @@ class SheetsWriter:
                 print(f"Successfully wrote {len(rows)} rows to Google Sheets.")
             except Exception as e:
                 print(f"Failed to write to Google Sheets: {e}")
-

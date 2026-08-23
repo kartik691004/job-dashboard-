@@ -1,0 +1,156 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN")
+DRY_RUN = os.getenv("DRY_RUN", "True").lower() in ("true", "1", "yes")
+
+# Google Sheets Config
+GOOGLE_SHEETS_CREDENTIALS = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "credentials.json")
+GOOGLE_SHEETS_ID = os.getenv("SHEET_ID", "")
+GOOGLE_SHEET_WORKSHEET = os.getenv("GOOGLE_SHEET_WORKSHEET", "LinkedIn Hiring Leads")
+
+# ── Role Categories ────────────────────────────────────────────────────────────
+# Phase 1: Chief of Staff / Founder's Office / Generalist
+# Phase 2: Product Manager, Game Developer added on top.
+# The classifier checks every category's keywords and tags each post with the
+# category whose keyword matched closest to a hiring signal.
+
+COS_ROLE_KEYWORDS = [
+    "chief of staff",
+    "founder's office",
+    "founders office",
+    "founder\u2019s office",   # Unicode right-apostrophe variant
+    "business generalist",
+    "generalist",
+    "strategy & operations",
+    "founder associate",
+    "founder's associate",
+    "special projects",
+]
+
+PRODUCT_ROLE_KEYWORDS = [
+    "product manager",
+    "product management",
+    "product associate",
+    "associate product manager",
+    "senior product manager",
+    "head of product",
+    "group product manager",
+    "product lead",
+    "product owner",
+    "pm role",
+    "apm program",
+]
+
+GAME_DEV_ROLE_KEYWORDS = [
+    "game developer",
+    "unity developer",
+    "unreal developer",
+    "unity engineer",
+    "game engineer",
+    "gameplay engineer",
+    "game designer",
+    "game programmer",
+    "game dev",
+    "gamedev",
+    "indie game",
+    "game studio",
+]
+
+DESIGN_ROLE_KEYWORDS = [
+    "design",
+    "ui/ux",
+    "ux designer",
+    "ui designer",
+    "product designer",
+    "graphic designer",
+    "visual designer"
+]
+
+DATA_SCIENCE_ROLE_KEYWORDS = [
+    "data scientist",
+    "machine learning",
+    "ml engineer",
+    "data analyst",
+    "ai engineer",
+    "applied scientist"
+]
+
+MARKETING_ROLE_KEYWORDS = [
+    "marketing",
+    "growth marketer",
+    "growth hacker",
+    "performance marketer",
+    "seo specialist",
+    "content marketer"
+]
+
+ROLE_CATEGORIES = {
+    "Chief of Staff / Founder's Office / Generalist": COS_ROLE_KEYWORDS,
+    "Product Manager": PRODUCT_ROLE_KEYWORDS,
+    "Game Developer": GAME_DEV_ROLE_KEYWORDS,
+    "Design / UI/UX": DESIGN_ROLE_KEYWORDS,
+    "Data Scientist / Machine Learning": DATA_SCIENCE_ROLE_KEYWORDS,
+    "Marketing / Growth": MARKETING_ROLE_KEYWORDS,
+}
+
+# ── Hiring Intent Signals (spec §3) ──────────────────────────────────────────
+HIRING_SIGNALS = [
+    "hiring",
+    "we're hiring",
+    "we are hiring",
+    "now hiring",
+    "looking for",
+    "looking for a",
+    "we're looking for",
+    "we are looking for",
+    "looking for someone",
+    "looking to hire",
+    "open role",
+    "open position",
+    "job opening",
+    "join our team",
+    "building our team",
+    "team is hiring",
+    "apply",
+    "applications open",
+    "send your resume",
+    "send your cv",
+    "send your portfolio",
+    "dm to apply",
+    "referrals welcome",
+    "seeking candidates",
+]
+
+# ── Exclusions: job-seeking, congratulatory, informational ───────────────────
+EXCLUSIONS = [
+    # Job-seeking / open-to-work
+    "i am looking for",
+    "i'm looking for",
+    "i\u2019m looking for",
+    "open to work",
+    "hire me",
+    "seeking opportunities",
+    "seeking a role",
+    "seeking founder's office",
+    # Congratulatory / joining announcements
+    "excited to join",
+    "thrilled to announce",
+    "i have joined",
+    "i've joined",
+    "congratulations",
+    "my new role",
+    "starting my new position",
+    "happy to share that i",
+    "delighted to announce",
+]
+
+# ── Proximity Rule (spec §4) ──────────────────────────────────────────────────
+# Role keyword and hiring signal must appear within this many characters.
+# Confidence:  0–100 chars  → 1.0
+#             101–300 chars  → 0.8
+#             >300 chars     → no match
+PROXIMITY_CHAR_LIMIT = int(os.getenv("HIRING_PROXIMITY_CHARS", "300"))
+

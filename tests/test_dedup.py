@@ -20,7 +20,7 @@ def fast_retries(monkeypatch):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def make_raw_post(url: str, text: str = "We are hiring a Chief of Staff.") -> RawPost:
+def make_raw_post(url: str, text: str = "We are hiring a Chief of Staff in Bangalore.") -> RawPost:
     return RawPost(
         post_url=url,
         post_date="2026-08-11",
@@ -34,17 +34,30 @@ def make_classified_post(url: str) -> ClassifiedPost:
     return ClassifiedPost(
         post_url=url,
         post_date="2026-08-11",
-        text="We are hiring a Chief of Staff.",
+        text="We are hiring a Chief of Staff in Bangalore.",
         author_name="Tester",
         author_profile_url="http://linkedin.com/in/tester",
-        role_category="Chief of Staff / Founder's Office / Generalist",
+        company_name="Unclear",
+        major_category="Chief of Staff",
+        exact_role="Chief of Staff",
+        ctc="Not Disclosed",
+        cold_email="Not Available",
+        hiring_manager_name="Unclear",
+        hiring_manager_linkedin="Unclear",
+        source_link=url,
+        description="We are hiring a Chief of Staff in Bangalore.",
+        confidence=1.0,
+        location="Bangalore",
         employment_type="Full-time",
-        detected_role_title="Unclear",
+        experience_requirement="Not Specified",
+        market="India",
+        india_relevance="India",
+        scraped_at="2026-08-11T12:00:00Z",
+        classification_reason="Deterministic Match",
+        status="New",
         matched_role_keywords="chief of staff",
         hiring_intent_signals="hiring",
-        confidence=1.0,
-        post_snippet="We are hiring a Chief of Staff.",
-        classification_reason="Deterministic Match",
+        india_evidence="Matched India location: bangalore",
         is_valid=True,
     )
 
@@ -105,7 +118,7 @@ def test_level2_dedup_skips_url_already_in_sheet():
     existing_urls = {"https://linkedin.com/posts/existing-post"}
     valid_posts = [make_classified_post("https://linkedin.com/posts/existing-post")]
 
-    new_valid = [p for p in valid_posts if p.post_url not in existing_urls]
+    new_valid = [p for p in valid_posts if p.source_link not in existing_urls]
     assert len(new_valid) == 0
 
 
@@ -114,9 +127,9 @@ def test_level2_dedup_passes_new_url_to_write():
     existing_urls = {"https://linkedin.com/posts/old-post"}
     valid_posts = [make_classified_post("https://linkedin.com/posts/brand-new-post")]
 
-    new_valid = [p for p in valid_posts if p.post_url not in existing_urls]
+    new_valid = [p for p in valid_posts if p.source_link not in existing_urls]
     assert len(new_valid) == 1
-    assert new_valid[0].post_url == "https://linkedin.com/posts/brand-new-post"
+    assert new_valid[0].source_link == "https://linkedin.com/posts/brand-new-post"
 
 
 def test_level2_dedup_mixed_old_and_new():
@@ -129,9 +142,9 @@ def test_level2_dedup_mixed_old_and_new():
         make_classified_post("https://linkedin.com/posts/new-2"),
     ]
 
-    new_valid = [p for p in valid_posts if p.post_url not in existing_urls]
+    new_valid = [p for p in valid_posts if p.source_link not in existing_urls]
     assert len(new_valid) == 2
-    urls = {p.post_url for p in new_valid}
+    urls = {p.source_link for p in new_valid}
     assert "https://linkedin.com/posts/new-1" in urls
     assert "https://linkedin.com/posts/new-2" in urls
 
@@ -166,36 +179,3 @@ def test_dry_run_returns_empty_existing_urls():
     )
     result = writer.get_existing_urls()
     assert result == set()
-
-
-# ── Query chunking ────────────────────────────────────────────────────────────
-
-from app.orchestrator import _build_queries
-
-
-def test_chunked_queries_within_budget():
-    """Every generated query must respect the character budget."""
-    cats = {"A": ["alpha", "beta", "gamma", "delta"],
-            "B": ["epsilon", "zeta", "eta-zero-one-two-three"]}
-    queries = _build_queries(cats, budget=30)
-    assert queries
-    for _, q in queries:
-        assert len(q) <= 30
-
-
-def test_chunked_queries_cover_all_terms():
-    """Splitting must never drop a keyword term."""
-    cats = {"A": ["alpha", "beta", "gamma", "delta"]}
-    queries = _build_queries(cats, budget=15)
-    joined = " ".join(q for _, q in queries)
-    assert len(queries) > 1
-    for term in cats["A"]:
-        assert f'"{term}"' in joined
-
-
-def test_chunked_queries_preserve_category():
-    """Each generated query must keep its role-category label."""
-    cats = {"A": ["alpha", "beta"], "B": ["gamma", "delta"]}
-    queries = dict(_build_queries(cats, budget=100))
-    assert set(queries) == {"A", "B"}
-

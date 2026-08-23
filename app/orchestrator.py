@@ -1,40 +1,26 @@
-from typing import Dict, Any, List, Tuple
-from app.sources.apify_source import ApifySource
+from typing import Dict, Any
+from app.sources.datadoping_source import DataDopingSource
 from app.classifier import DeterministicClassifier
 from app.sheets_writer import SheetsWriter
-from app.config import APIFY_API_TOKEN, GOOGLE_SHEETS_CREDENTIALS, GOOGLE_SHEETS_ID, GOOGLE_SHEET_WORKSHEET, DRY_RUN, ROLE_CATEGORIES
+from app.config import (
+    APIFY_API_TOKEN,
+    GOOGLE_SHEETS_CREDENTIALS,
+    GOOGLE_SHEETS_ID,
+    GOOGLE_SHEET_WORKSHEET,
+    DRY_RUN,
+    SEARCH_QUERIES,
+)
 
-# LinkedIn search rejects keyword queries above ~128 characters; keep each
-# query comfortably under that limit.
-QUERY_CHAR_BUDGET = 100
-
-
-def _build_queries(keywords_by_category: Dict[str, List[str]], budget: int = QUERY_CHAR_BUDGET) -> List[Tuple[str, str]]:
-    """Chunk role keywords into short OR-queries that fit LinkedIn's search limits.
-
-    Returns a list of (category, query) pairs; a category may span multiple
-    chunks when its keyword list is long.
-    """
-    queries = []
-    for category, keywords in keywords_by_category.items():
-        group = []
-        group_len = 0
-        for term in keywords:
-            quoted = f'"{term}"'
-            separators = 4 if group else 0  # " OR "
-            if group and group_len + separators + len(quoted) > budget:
-                queries.append((category, " OR ".join(group)))
-                group, group_len = [], 0
-            group.append(quoted)
-            group_len += len(quoted) + (4 if len(group) > 1 else 0)
-        if group:
-            queries.append((category, " OR ".join(group)))
-    return queries
-
+# USD per returned post on the datadoping actor (FREE plan, $5 per cycle from the 11th).
+PER_POST_USD = 0.00155
 
 class Orchestrator:
     def __init__(self):
-        self.source = ApifySource(APIFY_API_TOKEN)
+        # datadoping/linkedin-posts-search-scraper replaced supreme_coder/linkedin-post,
+        # whose content search has returned "No posts found" for every query since
+        # 2026-08-23. This actor takes keywords directly and covers all of them in ONE
+        # run, so a pipeline execution costs one run instead of one-per-query.
+        self.source = DataDopingSource(APIFY_API_TOKEN)
         self.classifier = DeterministicClassifier()
         self.sheets_writer = SheetsWriter(GOOGLE_SHEETS_CREDENTIALS, GOOGLE_SHEETS_ID, GOOGLE_SHEET_WORKSHEET, DRY_RUN)
 
@@ -42,23 +28,28 @@ class Orchestrator:
         """
         Execute the full LinkedIn Hiring Intelligence pipeline.
 
-        :param limit: Maximum number of posts requested per Apify search query.
+        :param limit: Maximum posts requested per keyword. The actor floors this at 10.
                       Must be a positive integer (validated at the API layer).
         """
         errors = 0
         print("Starting pipeline...")
 
-        # 1. Search Queries — short chunked queries per role category so
-        #    LinkedIn search accepts them. Results are merged and
-        #    deduplicated at Level 1 below.
-        raw_posts = []
-        for category, query in _build_queries(ROLE_CATEGORIES):
-            print(f"Scraping LinkedIn posts for [{category}]: {query}  (limit={limit})")
-            try:
-                raw_posts.extend(self.source.search_posts(query, limit=limit))
-            except Exception as e:
-                print(f"Scrape error for [{category}]: {e}")
-                errors += 1
+        # 1. Scrape — all SEARCH_QUERIES keywords in a single actor run
+        est_posts = len(SEARCH_QUERIES) * max(limit, 10)
+        print(f"Scraping {len(SEARCH_QUERIES)} keywords in one actor run "
+              f"(max {max(limit, 10)}/keyword, ceiling {est_posts} posts, ~${est_posts * PER_POST_USD:.2f})")
+        try:
+            raw_posts = self.source.search_all(SEARCH_QUERIES, max_posts=limit)
+        except Exception as e:
+            print(f"Scrape error: {e}")
+            return {"scraped": 0, "unique": 0, "valid": 0, "excluded": 0,
+                    "current_run_duplicates": 0, "sheet_duplicates": 0,
+                    "new_rows": 0, "errors": 1}
+        if self.source.last_errors:
+            errors += len(self.source.last_errors)
+            print(f"Actor reported {len(self.source.last_errors)} unusable records; "
+                  f"first: {self.source.last_errors[0]}")
+        print(f"Scraped {len(raw_posts)} posts.")
 
         # 3. Level 1 Deduplication — current run
         unique_raw_posts = []
@@ -81,7 +72,8 @@ class Orchestrator:
                 else:
                     excluded_count += 1
             except Exception as e:
-                print(f"Classifier error on {p.post_url}: {e}")
+                import traceback
+                print(f"Classifier error on {p.post_url}: {e}\n{traceback.format_exc()}")
                 errors += 1
                 excluded_count += 1
 
@@ -96,7 +88,7 @@ class Orchestrator:
         new_valid_posts = []
         sheet_duplicates = 0
         for p in valid_posts:
-            if p.post_url in existing_urls:
+            if p.source_link in existing_urls:
                 sheet_duplicates += 1
             else:
                 new_valid_posts.append(p)
@@ -108,7 +100,7 @@ class Orchestrator:
             print(f"Sheet write error: {e}")
             errors += 1
 
-        # 7. Summary — matches spec §14
+        # 7. Summary
         summary = {
             "scraped": len(raw_posts),
             "unique": len(unique_raw_posts),
@@ -134,4 +126,3 @@ class Orchestrator:
         )
 
         return summary
-

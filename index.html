@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Indian Startup Intelligence & Outreach Automation Control Hub</title>
+  <title>LinkedIn Hiring Intelligence — FO / Chief of Staff Lead Detector</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,7 +33,7 @@
     .badge-status { background: rgba(63, 185, 80, 0.15); color: var(--green-bright); border: 1px solid rgba(63, 185, 80, 0.4); padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
     .badge-error { background: rgba(218, 54, 51, 0.15); color: #f85149; border: 1px solid rgba(218, 54, 51, 0.4); padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
 
-    .btn { background: #21262d; color: var(--text-bright); border: 1px solid var(--border); padding: 0.45rem 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .btn { background: #21262d; color: var(--text-bright); border: 1px solid var(--border); padding: 0.45rem 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; }
     .btn:hover { background: #30363d; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-green { background: var(--green); border-color: rgba(240, 246, 252, 0.1); }
@@ -48,19 +48,17 @@
     .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
     .panel-title { font-size: 1rem; font-weight: 700; color: var(--text-bright); display: flex; align-items: center; gap: 0.5rem; }
 
-    .tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; overflow-x: auto; }
-    .tab-btn { background: transparent; border: 1px solid transparent; color: var(--text-muted); padding: 0.4rem 0.75rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
-    .tab-btn:hover { color: var(--text-bright); background: #21262d; }
-    .tab-btn.active { color: var(--green-bright); background: rgba(63, 185, 80, 0.1); border-color: rgba(63, 185, 80, 0.3); }
-
-    .sheet-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: #010409; }
+    .sheet-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; background: #010409; max-height: 480px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; }
-    th { background: #161b22; color: var(--green-bright); padding: 0.6rem 0.75rem; border: 1px solid var(--border); font-family: var(--font-code); font-weight: 600; }
+    th { background: #161b22; color: var(--green-bright); padding: 0.6rem 0.75rem; border: 1px solid var(--border); font-family: var(--font-code); font-weight: 600; position: sticky; top: 0; }
     td { padding: 0.6rem 0.75rem; border: 1px solid var(--border); background: #0d1117; font-family: var(--font-code); }
     tr:nth-child(even) td { background: #161b22; }
 
     .link { color: var(--blue); text-decoration: none; }
     .link:hover { text-decoration: underline; }
+    .pill { padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; }
+    .pill-new { background: rgba(63, 185, 80, 0.15); color: var(--green-bright); border: 1px solid rgba(63, 185, 80, 0.4); }
+    .pill-other { background: rgba(88, 166, 255, 0.12); color: var(--blue); border: 1px solid rgba(88, 166, 255, 0.35); }
 
     .console-box { background: #010409; border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; font-family: var(--font-code); font-size: 0.8rem; height: 200px; overflow-y: auto; color: var(--text-muted); }
     .log-entry { margin-bottom: 0.25rem; }
@@ -69,11 +67,7 @@
     .log-error { color: #f85149; }
 
     .code-box { background: #010409; border: 1px solid var(--border); border-radius: 4px; padding: 1rem; font-family: var(--font-code); font-size: 0.82rem; color: #e6edf3; overflow-x: auto; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
     .empty-state { padding: 2rem; text-align: center; color: var(--text-muted); font-style: italic; }
-    .error-state { padding: 2rem; text-align: center; color: #f85149; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--green-bright); border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -82,77 +76,57 @@
 
   <header>
     <div class="title">
-      <span>AI Indian Startup Intelligence & Outreach Automation</span>
+      <span>LinkedIn Hiring Intelligence — Founder's Office / Chief of Staff</span>
       <span class="badge-status" id="api-status">Loading...</span>
     </div>
     <div style="display:flex; gap:0.5rem;">
       <button class="btn btn-green" id="btn-run" onclick="runPipeline()">
         <span id="run-label">Run Pipeline</span>
       </button>
-      <a class="btn" id="btn-export" href="/export" style="text-decoration:none;" download>
-        Download Excel
+      <a class="btn" id="btn-sheet" href="#" target="_blank" style="text-decoration:none;">
+        Open Google Sheet
       </a>
     </div>
   </header>
 
   <div class="grid-summary">
     <div class="kpi-box">
-      <div class="kpi-title">Excel Target</div>
-      <div class="kpi-val" style="font-size:0.95rem; color:var(--green-bright); word-break:break-all;">excel/Indian_Startup_Outreach.xlsx</div>
-      <span style="font-size:0.75rem; color:var(--text-muted);">6 Sheets — Funding & Founder Intel</span>
+      <div class="kpi-title">Total Leads</div>
+      <div class="kpi-val" id="count-total">-</div>
+      <span style="font-size:0.75rem; color:var(--text-muted);">LinkedIn Hiring Leads tab</span>
     </div>
     <div class="kpi-box">
-      <div class="kpi-title">Funded Startups</div>
-      <div class="kpi-val" id="count-startups">-</div>
-      <span style="font-size:0.75rem; color:var(--green-bright);">2025+ Funding, Priority Sorted</span>
+      <div class="kpi-title">New (Unworked)</div>
+      <div class="kpi-val" id="count-new">-</div>
+      <span style="font-size:0.75rem; color:var(--green-bright);">Status = New</span>
     </div>
     <div class="kpi-box">
-      <div class="kpi-title">Founders & Contacts</div>
-      <div class="kpi-val" id="count-contacts">-</div>
-      <span style="font-size:0.75rem; color:var(--blue);">LinkedIn, Email, Role</span>
+      <div class="kpi-title">With Cold Email</div>
+      <div class="kpi-val" id="count-email">-</div>
+      <span style="font-size:0.75rem; color:var(--blue);">Outreach-ready contacts</span>
     </div>
     <div class="kpi-box">
-      <div class="kpi-title">Pipeline Runs</div>
-      <div class="kpi-val" id="count-runs">Daily 1AM</div>
-      <span style="font-size:0.75rem; color:var(--purple);">Auto-refresh existing + new</span>
+      <div class="kpi-title">Schedule</div>
+      <div class="kpi-val" style="font-size:0.95rem;">Mon / Wed / Fri — 01:00 IST</div>
+      <span style="font-size:0.75rem; color:var(--purple);">3 runs/week — Apify FREE cap safe</span>
     </div>
   </div>
 
-  <!-- Excel Multi-Sheet Preview -->
+  <!-- Leads table -->
   <div class="panel">
     <div class="panel-header">
-      <div class="panel-title">
-        <span>Live 6-Sheet Excel Preview — Funding & Founder Intelligence</span>
-      </div>
-      <span style="font-size:0.75rem; color:var(--text-muted);">Auto-Sorted by Priority Score</span>
+      <div class="panel-title"><span>LinkedIn Hiring Leads — newest first</span></div>
+      <button class="btn" style="font-size:0.7rem;" onclick="loadDashboard()">Refresh</button>
     </div>
-
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('startups')">1. Startups</button>
-      <button class="tab-btn" onclick="switchTab('funding')">2. Funding Rounds</button>
-      <button class="tab-btn" onclick="switchTab('founders')">3. Founders & Leadership</button>
-      <button class="tab-btn" onclick="switchTab('contacts')">4. Key Contacts</button>
-      <button class="tab-btn" onclick="switchTab('linkedin')">5. LinkedIn Profiles</button>
-      <button class="tab-btn" onclick="switchTab('logs')">6. Logs</button>
-    </div>
-
-    <div id="tab-startups" class="tab-content active">
-      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Industry</th><th>Funding Stage</th><th>Funding Amount</th><th>Investors</th><th>City</th><th>Website</th></tr></thead><tbody id="tbody-startups"><tr><td colspan="8" class="empty-state">Loading...</td></tr></tbody></table></div>
-    </div>
-    <div id="tab-funding" class="tab-content">
-      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Round</th><th>Amount</th><th>Date</th><th>Lead Investor</th><th>Co-Investors</th></tr></thead><tbody id="tbody-funding"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
-    </div>
-    <div id="tab-founders" class="tab-content">
-      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Founder</th><th>CEO</th><th>Position</th><th>LinkedIn</th><th>Email</th></tr></thead><tbody id="tbody-founders"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
-    </div>
-    <div id="tab-contacts" class="tab-content">
-      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Contact</th><th>Role</th><th>Department</th><th>LinkedIn</th><th>Email</th></tr></thead><tbody id="tbody-contacts"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
-    </div>
-    <div id="tab-linkedin" class="tab-content">
-      <div class="sheet-wrapper"><table><thead><tr><th>Startup ID</th><th>Company</th><th>Name</th><th>Role</th><th>LinkedIn URL</th></tr></thead><tbody id="tbody-linkedin"><tr><td colspan="5" class="empty-state">Loading...</td></tr></tbody></table></div>
-    </div>
-    <div id="tab-logs" class="tab-content">
-      <div class="sheet-wrapper"><table><thead><tr><th>Date</th><th>Found</th><th>Added</th><th>Contacts</th><th>Errors</th><th>Duration</th><th>Status</th></tr></thead><tbody id="tbody-logs"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody></table></div>
+    <div class="sheet-wrapper">
+      <table>
+        <thead><tr>
+          <th>Company Name</th><th>Exact Role</th><th>CTC</th><th>Cold Email</th>
+          <th>Hiring Manager</th><th>Location</th><th>Type</th><th>Confidence</th>
+          <th>Status</th><th>Source Link</th>
+        </tr></thead>
+        <tbody id="tbody-leads"><tr><td colspan="10" class="empty-state">Loading...</td></tr></tbody>
+      </table>
     </div>
   </div>
 
@@ -165,12 +139,9 @@
       <div class="code-box">
 <span style="color:var(--blue);">REST API Routes (Port 8000):</span>
 • GET  /health         Health check
-• GET  /startups       Discovered Indian startups (2025+ funding, priority sorted)
-• GET  /founders       Founders, CEO, CTO, COO with LinkedIn & email
-• GET  /contacts       HR, tech leads, management with LinkedIn & email
-• GET  /export         Download 6-sheet Excel workbook
-• POST /run            Trigger funding & founder intelligence pipeline
-• GET  /schedule/status Daily 1AM IST scheduler status
+• GET  /leads          Recent FO / CoS leads (newest first)
+• POST /run            Trigger scrape -> classify -> dedupe -> write
+• GET  /               This control hub
       </div>
     </div>
 
@@ -185,6 +156,7 @@
 
   <script>
     const API_BASE = '';
+    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis/edit';
     let isRunning = false;
 
     function log(msg, cls = 'log-ok') {
@@ -212,72 +184,71 @@
       }
     }
 
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('tab-' + tabId).classList.add('active');
-    }
-
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    function renderTable(tbodyId, rows, columns) {
-      const tbody = document.getElementById(tbodyId);
-      if (!rows || rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="' + columns + '" class="empty-state">No data available</td></tr>';
-        return;
-      }
-      tbody.innerHTML = '';
-      rows.forEach(row => {
-        const tr = document.createElement('tr');
-        Object.values(row).forEach(val => {
-          const td = document.createElement('td');
-          if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
-            const a = document.createElement('a');
-            a.href = escapeHtml(val);
-            a.target = '_blank';
-            a.className = 'link';
-            a.textContent = val.length > 40 ? val.substring(0, 40) + '...' : val;
-            td.appendChild(a);
-          } else {
-            td.textContent = val;
-          }
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-    }
-
     async function fetchJson(url) {
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
       return resp.json();
+    }
+
+    function statusPill(status) {
+      const cls = (status || '').toLowerCase() === 'new' ? 'pill pill-new' : 'pill pill-other';
+      return '<span class="' + cls + '">' + escapeHtml(status || '-') + '</span>';
     }
 
     async function loadDashboard() {
       try {
-        const data = await fetchJson(API_BASE + '/dashboard');
+        const data = await fetchJson(API_BASE + '/leads?limit=200');
         setApiStatus(true);
-        const sheets = data.sheets || {};
+        document.getElementById('count-total').textContent = data.total;
+        document.getElementById('count-new').textContent = data.status_new;
+        document.getElementById('count-email').textContent = data.with_email;
 
-        if (sheets.startups) renderTable('tbody-startups', sheets.startups, 9);
-        if (sheets['Funding Rounds']) renderTable('tbody-funding', sheets['Funding Rounds'], 7);
-        if (sheets['Founders & Leadership']) renderTable('tbody-founders', sheets['Founders & Leadership'], 8);
-        if (sheets['Key Contacts']) renderTable('tbody-contacts', sheets['Key Contacts'], 7);
-        if (sheets['LinkedIn Profiles']) renderTable('tbody-linkedin', sheets['LinkedIn Profiles'], 5);
-        if (sheets.logs) renderTable('tbody-logs', sheets.logs, 7);
+        const tbody = document.getElementById('tbody-leads');
+        if (!data.rows || data.rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No leads yet — run the pipeline.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = '';
+        data.rows.forEach(r => {
+          const tr = document.createElement('tr');
+          const cells = [
+            r['Company Name'], r['Exact Role'], r['CTC'], r['Cold Email'],
+            r['Hiring Manager Name'], r['Location'], r['Type'], r['Confidence Score'],
+          ];
+          cells.forEach(val => {
+            const td = document.createElement('td');
+            td.textContent = (val === undefined || val === null || val === '') ? '-' : val;
+            tr.appendChild(td);
+          });
+          const tdStatus = document.createElement('td');
+          tdStatus.innerHTML = statusPill(r['Status']);
+          tr.appendChild(tdStatus);
 
-        document.getElementById('count-startups').textContent = sheets.startups ? sheets.startups.length : '-';
-        const founders = sheets['Founders & Leadership'] ? sheets['Founders & Leadership'].length : 0;
-        const contacts = sheets['Key Contacts'] ? sheets['Key Contacts'].length : 0;
-        document.getElementById('count-contacts').textContent = (founders + contacts) || '-';
+          const tdLink = document.createElement('td');
+          const url = r['Source Link'] || '';
+          if (typeof url === 'string' && url.startsWith('http')) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.className = 'link';
+            a.textContent = url.length > 36 ? url.substring(8, 36) + '…' : 'Open';
+            tdLink.appendChild(a);
+          } else {
+            tdLink.textContent = '-';
+          }
+          tr.appendChild(tdLink);
+          tbody.appendChild(tr);
+        });
+        log('Leads loaded: ' + data.total + ' total, ' + data.status_new + ' new.', 'log-ok');
       } catch (e) {
         setApiStatus(false);
-        log('Failed to load dashboard: ' + e.message, 'log-error');
+        log('Failed to load leads: ' + e.message, 'log-error');
       }
     }
 
@@ -289,13 +260,16 @@
       btn.disabled = true;
       label.innerHTML = '<span class="spinner"></span> Running...';
 
-      log('Triggering pipeline via POST /run...', 'log-info');
+      log('Triggering pipeline via POST /run (limit=10)...', 'log-info');
       try {
         const result = await fetch(API_BASE + '/run?limit=10', { method: 'POST' });
-        if (!result.ok) throw new Error('HTTP ' + result.status);
         const data = await result.json();
-        log('Pipeline completed: ' + (data.status || 'SUCCESS'), 'log-ok');
-        setTimeout(loadDashboard, 2000);
+        if (!result.ok) throw new Error('HTTP ' + result.status);
+        if (data.status === 'error') throw new Error(data.message || 'pipeline error');
+        const s = data.summary || {};
+        log('Pipeline done: scraped ' + s.scraped + ', valid ' + s.valid
+            + ', new rows ' + s.new_rows + ', errors ' + s.errors, 'log-ok');
+        setTimeout(loadDashboard, 1500);
       } catch (e) {
         log('Pipeline failed: ' + e.message, 'log-error');
       } finally {
@@ -306,9 +280,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btn-sheet').href = SHEET_URL;
       log('Control hub initialised. Connecting to ' + window.location.origin, 'log-info');
       loadDashboard();
-      setInterval(loadDashboard, 30000);
+      setInterval(loadDashboard, 60000);
     });
   </script>
 </body>

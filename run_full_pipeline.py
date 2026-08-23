@@ -767,7 +767,7 @@ def push_to_google_sheets(
         return
 
     CREDENTIALS_PATH = "credentials.json"
-    SPREADSHEET_ID = "1f1KvSqcaMuVByUqkejWn1vJVB6FrceEV1vxPErUhV1Y"
+    SPREADSHEET_ID = "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis"
 
     if not Path(CREDENTIALS_PATH).exists():
         log.error(f"Credentials file not found: {CREDENTIALS_PATH}")
