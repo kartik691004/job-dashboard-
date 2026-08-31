@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import traceback
 import gspread
@@ -31,8 +32,19 @@ EXPECTED_HEADERS = [
 ]
 
 def _safe_print(text: str) -> None:
-    """Print text safely on any platform, replacing unencodable characters."""
-    print(text.encode("utf-8", errors="replace").decode("utf-8", errors="replace"))
+    """Print text safely on any platform.
+
+    A console whose encoding (e.g. cp1252) cannot represent some Unicode chars
+    (non-breaking hyphens, emoji, etc.) would otherwise raise UnicodeEncodeError
+    and crash the run. We re-encode for the *actual* stdout encoding with
+    errors="replace" so nothing is ever lost fatally.
+    """
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        enc = (getattr(sys.stdout, "encoding", None) or "utf-8")
+        safe = text.encode(enc, errors="replace").decode(enc, errors="replace")
+        print(safe)
 
 def _with_retry(fn, attempts: int = 4, base_delay: float = 5.0):
     """Retry a Google API call against transient 403/5xx errors."""

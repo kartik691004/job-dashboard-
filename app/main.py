@@ -10,6 +10,7 @@ from app.config import (
     GOOGLE_SHEET_WORKSHEET,
 )
 from app.orchestrator import Orchestrator
+from app.outreach import OutreachRunner
 from app.sheets_writer import EXPECTED_HEADERS
 
 app = FastAPI(title="LinkedIn Hiring Intelligence")
@@ -70,6 +71,24 @@ def get_leads(limit: int = 200):
         "headers": EXPECTED_HEADERS,
         "rows": rows[:limit],
     }
+
+
+@app.post("/outreach")
+def run_outreach(max_per_run: int = 5):
+    """Cold-email Status=New leads that carry a real Cold Email address.
+
+    Respects DRY_RUN: with the .env default (true) this previews without
+    sending or modifying the sheet. Only the Status cell of mailed rows is
+    updated, and never on the protected gid=0 tab.
+    """
+    if max_per_run <= 0:
+        raise HTTPException(status_code=422, detail="max_per_run must be a positive integer")
+    try:
+        runner = OutreachRunner()
+        summary = runner.run(max_per_run=max_per_run)
+        return {"status": "success", "summary": summary}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
 
 
 @app.get("/", include_in_schema=False)

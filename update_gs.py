@@ -1,17 +1,3 @@
-import os
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-
-import requests
-import warnings
-warnings.filterwarnings("ignore", message="Unverified HTTPS request")
-
-old_request = requests.Session.request
-def new_request(*args, **kwargs):
-    kwargs['verify'] = False
-    return old_request(*args, **kwargs)
-requests.Session.request = new_request
-
 import gspread
 from google.oauth2.service_account import Credentials
 

@@ -769,6 +769,11 @@ def push_to_google_sheets(
     CREDENTIALS_PATH = "credentials.json"
     SPREADSHEET_ID = "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis"
 
+    # Legacy pipeline may clear+rewrite its own tabs, but never these:
+    # gid=0 is the protected Job Board, and "LinkedIn Hiring Leads" belongs to
+    # the live app/ pipeline (see AI_CONTEXT.md safety rules).
+    PROTECTED_TABS = {"LinkedIn Hiring Leads"}
+
     if not Path(CREDENTIALS_PATH).exists():
         log.error(f"Credentials file not found: {CREDENTIALS_PATH}")
         return
@@ -788,6 +793,9 @@ def push_to_google_sheets(
 
     def _write_sheet(name: str, columns: list, data: list):
         """Clear and rewrite a sheet."""
+        if (name or "").strip().lower() in {t.lower() for t in PROTECTED_TABS}:
+            log.error(f"  Refusing to touch protected tab '{name}'.")
+            return
         try:
             try:
                 ws = spreadsheet.worksheet(name)

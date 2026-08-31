@@ -8,18 +8,135 @@ from app.config import (
     FO_AMBIGUOUS_KEYWORD,
     FO_PROOF_PHRASES,
     HIRING_SIGNALS,
+    VACANCY_LABEL_SIGNALS,
     EXCLUSIONS_JOB_SEEKER,
+    EXCLUSIONS_JOB_SEEKER_PATTERNS,
     EXCLUSIONS_CONGRATULATORY,
     EXCLUSIONS_INFORMATIONAL,
-    INTERNSHIP_INDICATORS,
+    INTERNSHIP_RE,
     INDIA_CITIES,
     NON_INDIA_LOCATIONS,
     NON_INDIA_COUNTRIES,
     INDIA_COMPENSATION,
     CONFIDENCE_THRESHOLD,
     PROXIMITY_CHAR_LIMIT,
+    AGGREGATOR_PATTERNS,
+    GENERIC_PLACEHOLDER_COMPANIES,
+    MULTI_EMPLOYER_STOPWORDS,
+    ACTUAL_ROLE_STRONG_PATTERNS,
+    ROLE_CONTEXT_WEAK_MARKERS,
+    EMPLOYER_RECRUITER_STRONG_PATTERNS,
+    EMPLOYER_RECRUITER_SUPPORT_PATTERNS,
 )
 from app.models import RawPost, ClassifiedPost
+
+
+def _is_person_profile_url(url) -> bool:
+    """A LinkedIn PERSON profile contains /in/... ; a /company/... or any other
+    path is a company / organization page and must not be treated as a person.
+    Non-LinkedIn URLs (empty, "Unclear", or any other domain) are conservatively
+    treated as NOT a person profile, so nothing is invented."""
+    if not url:
+        return False
+    u = url.lower()
+    if "/company/" in u:
+        return False
+    if "linkedin.com/in/" in u or "/in/" in u:
+        return True
+    return False
+
+
+def _distinct_employers(text):
+    """Count UNIQUE employer names a post says are hiring / looking / recruiting.
+
+    Returns the number of distinct (normalised) employer names. Used for the
+    single-employer guard: >=2 distinct employers => a multi-employer roundup,
+    not one vacancy. Stopwords / generic subjects and sentence-fragment capture
+    are excluded.
+
+    The input MUST be the original-case post text: capitalization is the signal
+    used to recognise company names (MULTI_EMPLOYER_SUBJECT_RE starts each word
+    with [A-Z]), and a lowercased input silently disables the guard. Only the
+    SUBJECT shape is counted: "<Name> is/are [adverb] hiring/looking/recruiting
+    ...". Object-prepositional employers ("... at <Name>") are deliberately NOT
+    counted: that pattern cannot reliably separate a genuine second employer
+    from an apply-link/platform/role/city noun (e.g. "Apply at LinkedIn"), so
+    counting it would over-reject genuine single-employer posts.
+    """
+    subjects = set()
+
+    # Common adverbial inserts between "is/are" and the verb ("is also hiring",
+    # "is currently hiring", "is looking to hire") that previously slipped past.
+    subject_re = re.compile(
+        r"\b((?:[A-Z][A-Za-z0-9&.'\u2019\-]*)(?:\s+[A-Z][A-Za-z0-9&.'\u2019\-]*){0,2})"
+        r"\s+(?:is|are)\s+"
+        r"(?:(?:also|now|currently|actively|recently|all)\s+)?"
+        r"(?:hiring|recruiting|looking\s+to\s+hire|looking\s+for)\b"
+    )
+
+    def _norm(raw):
+        name = re.sub(r"\s+", " ", raw).strip()
+        # A capitalized-name run captured before "is/are hiring" can accidentally
+        # absorb the trailing capitalized word of a PRIOR sentence (e.g.
+        # "FirstCry. Flipkart is also hiring"). Wherever a dot-space occurs,
+        # keep only the last contiguous segment (the name actually sitting next
+        # to the verb), so the real company — not the sentence fragment — counts.
+        if re.search(r"\.\s", name):
+            name = re.split(r"\.\s", name)[-1].strip()
+        name = name.rstrip(".")
+        if not name:
+            return None
+        if name.lower() in MULTI_EMPLOYER_STOPWORDS:
+            return None
+        return name.lower()
+
+    for m in subject_re.finditer(text):
+        n = _norm(m.group(1))
+        if n:
+            subjects.add(n)
+    return len(subjects)
+
+
+def _has_actual_role_evidence(text):
+    """True when the post clearly frames the target keyword as the advertised
+    vacancy (a title, 'hiring/looking for <role>', 'join as <role>', an opening).
+    Matching is case-insensitive to handle title-case post headers.
+    """
+    return any(re.search(p, text, re.IGNORECASE) for p in ACTUAL_ROLE_STRONG_PATTERNS)
+
+
+def _has_role_context_only(text):
+    """True when the target keyword appears only as role-context / experience /
+    preference (e.g. "high-ownership Founder's Office role", "Founder's Office
+    experience preferred"), i.e. NOT a vacancy. Only consulted when strong
+    actual-role evidence is absent."""
+    return any(re.search(p, text) for p in ROLE_CONTEXT_WEAK_MARKERS)
+
+
+def _is_employer_recruiter_context(text):
+    """True when the post reads as an EMPLOYER / RECRUITER hiring someone rather
+    than a job-seeker looking for work.
+
+    Employer intent is confident when at least one STRONG framing pattern is
+    present ("for our team", "to join us", "candidates", "we're hiring", ...).
+    SUPPORT patterns ("DM me", "reach out", ...) only help confirm context when
+    a strong pattern is already present — "DM me" alone is never sufficient,
+    because candidates also say "I'm looking for a role, DM me".
+    """
+    strong_hit = any(re.search(p, text, re.IGNORECASE) for p in EMPLOYER_RECRUITER_STRONG_PATTERNS)
+    if strong_hit:
+        return True
+    # Support alone is not enough: require support AND an extra signal that the
+    # "I" is sourcing candidates (a candidate onlooker reference / application
+    # framing), so ambiguous first-person text stays fail-closed (rejected).
+    support_hit = any(re.search(p, text, re.IGNORECASE) for p in EMPLOYER_RECRUITER_SUPPORT_PATTERNS)
+    if support_hit:
+        # "DM if interested in the opening/position" — clearly a recruiter
+        # pointing applicants at an employer's opening.
+        if re.search(r"\b(?:interested|share|refer)\s+.*\bopening\b", text, re.IGNORECASE):
+            return True
+    return False
+
 
 class DeterministicClassifier:
     def classify(self, post: RawPost) -> ClassifiedPost:
@@ -27,13 +144,27 @@ class DeterministicClassifier:
         scraped_at = datetime.now(timezone.utc).isoformat()
         
         # ── Stage 1: Exclusions ───────────────────────────────────────────────
-        for ind in INTERNSHIP_INDICATORS:
-            if ind in text_lower:
-                return self._create_invalid(post, f"Internship detected: '{ind}'", scraped_at)
-                
+        # Phase-9E Bug 1: word-bounded internship detection (INTERNSHIP_RE)
+        # replaces the former bare-substring check, so ordinary words like
+        # "international", "interested", and "internet" no longer trigger a
+        # false internship rejection, while genuine intern/intership/interning
+        # mentions still reject.
+        m = INTERNSHIP_RE.search(text_lower)
+        if m:
+            return self._create_invalid(
+                post, f"Internship detected: '{m.group(0)}'", scraped_at
+            )
         for ex in EXCLUSIONS_JOB_SEEKER:
             if ex in text_lower:
                 return self._create_invalid(post, f"Job-seeker post: '{ex}'", scraped_at)
+        for pat in EXCLUSIONS_JOB_SEEKER_PATTERNS:
+            m = re.search(pat, text_lower, re.IGNORECASE)
+            if m:
+                return self._create_invalid(
+                    post,
+                    f"Job-seeker post: candidate seeking language '{m.group(0).strip()[:40]}'",
+                    scraped_at,
+                )
                 
         for ex in EXCLUSIONS_CONGRATULATORY:
             if ex in text_lower:
@@ -85,7 +216,14 @@ class DeterministicClassifier:
             if role_term not in text_lower: continue
             for role_match in re.finditer(re.escape(role_term), text_lower):
                 role_start, role_end = role_match.span()
-                for sig in HIRING_SIGNALS:
+                # Phase 10: explicit vacancy labels (Role:/Position:/Title:/
+                # Opening:/Vacancy:/Designation:/Join as) also satisfy the
+                # proximity hint, alongside the active-hiring verbs. They never
+                # widen which POST types pass (Stage 2 already requires a target
+                # FO/CoS keyword, and Stages 3b/3c still reject aggregators,
+                # context-only, and non-target roles). This only lets genuinely
+                # label-framed vacancies reach the later gates.
+                for sig in (*HIRING_SIGNALS, *VACANCY_LABEL_SIGNALS):
                     for sig_match in re.finditer(re.escape(sig), text_lower):
                         sig_start, sig_end = sig_match.span()
                         dist = max(0, max(sig_start - role_end, role_start - sig_end))
@@ -100,8 +238,60 @@ class DeterministicClassifier:
         # But let's add a strict check for "I am looking for a [role]" pattern just in case
         job_seeking_pattern = re.compile(rf"(i am|i'm|i\u2019m) looking for a (.*?)({re.escape(matched_role.replace(' (with proof)', ''))})", re.IGNORECASE)
         if job_seeking_pattern.search(text_lower):
-             return self._create_invalid(post, "First-person job seeking pattern detected", scraped_at)
+            # "I am looking for a Chief of Staff" can be either a JOB SEEKER
+            # (wanting the role for themselves) or a RECRUITER/EMPLOYER (sourcing
+            # a candidate for an organisation). Only reject as a job seeker when
+            # there is NO strong employer/recruiter context; otherwise let the
+            # post proceed through the normal hiring/role/India/full-time gates.
+            if not _is_employer_recruiter_context(text_lower):
+                return self._create_invalid(post, "First-person job seeking pattern detected", scraped_at)
 
+
+        # ── Stage 3b: Single-employer / Aggregator validation (Phase 9A) ───────
+        # A post that is a fixed list of jobs across MANY employers (roundups,
+        # job alerts, curated lists, "batch of 40 roles", "X companies hiring")
+        # is NOT a single-employer vacancy. It must be rejected BEFORE any field
+        # extraction / enrichment, so an aggregator's company can never leak into
+        # a lead. Two independent checks:
+        #   (1) explicit aggregator phrasing;
+        #   (2) >=2 distinct employers each "is/are hiring" (structural).
+        for agg_re in AGGREGATOR_PATTERNS:
+            if re.search(agg_re, text_lower):
+                return self._create_invalid(
+                    post,
+                    f"Aggregator/roundup post detected: '{agg_re}'",
+                    scraped_at,
+                )
+        # NOTE: _distinct_employers relies on original-case capitalization to
+        # identify company names (MULTI_EMPLOYER_SUBJECT_RE starts each word with
+        # [A-Z]). Passing text_lower here would zero every match and silently
+        # disable the structural multi-employer guard. Use post.text (original
+        # case) so the guard actually fires.
+        if _distinct_employers(post.text) >= 2:
+            return self._create_invalid(
+                post,
+                "Multi-employer aggregator: multiple distinct companies hiring in one post",
+                scraped_at,
+            )
+
+        # ── Stage 3c: Actual-role validation (Phase 9A) ────────────────────────
+        # CORE PRODUCT RULE: the target role must be the ADVERTISED VACANCY in
+        # this post, not merely a mention / context / experience / preference.
+        # A genuine vacancy is signalled by strong patterns ("hiring a Founder's
+        # Office Associate", "role: Chief of Staff", "looking for a Chief of
+        # Staff", "join as <role>", "<role> Executive", "<role> is open").
+        # If strong evidence is present the post passes (even when it also says
+        # "business operations" or mentions experience). If strong evidence is
+        # ABSENT and the keyword only appears as context/experience/preference,
+        # reject — "Founder's Office role" in a Marketing Manager post, or a
+        # "Business Operations / Founder's Team" role, is not a FO/CoS vacancy.
+        if not _has_actual_role_evidence(post.text):
+            if _has_role_context_only(text_lower):
+                return self._create_invalid(
+                    post,
+                    "FO/CoS mentioned as role context/experience, not the advertised vacancy",
+                    scraped_at,
+                )
 
         # ── Stage 4: Market Classification (Strictly India-Only) ──────────────
         india_relevance = "Unclear"
@@ -149,21 +339,27 @@ class DeterministicClassifier:
             else:
                 india_relevance = "India"
                 market = "India"
-        elif has_india_comp:
-            india_relevance = "Indian Company"
-            market = "India"
+        elif has_intl_loc:
+            india_relevance = "Not India"
+            return self._create_invalid(post, "Not India (International location without India context)", scraped_at)
         else:
-            if has_intl_loc:
-                india_relevance = "Not India"
-                return self._create_invalid(post, "Not India (International location without India context)", scraped_at)
-            else:
-                india_relevance = "Unclear"
-                return self._create_invalid(post, "Unclear India relevance", scraped_at)
+            # Compensation signals (₹ / INR / LPA / CTC / lakhs) may SUPPORT
+            # India relevance but are never sufficient proof of it on their
+            # own; they do not override the role/hiring gates above.
+            reason = "Unclear India relevance"
+            if has_india_comp:
+                reason += " (Indian compensation signal alone does not prove India context)"
+            return self._create_invalid(post, reason, scraped_at)
 
         # ── Stage 5: Field Extraction ─────────────────────────────────────────
         # Exact Role
+        # NOTE: LinkedIn text overwhelmingly uses the curly apostrophe (\u2019);
+        # Stage 2 accepts both spellings, so this display regex must too.
         exact_role = "Unclear"
-        role_pattern = re.compile(r"(.{0,20})\b(chief of staff|founder's office|founders office|founder associate)\b(.{0,20})", re.IGNORECASE)
+        role_pattern = re.compile(
+            r"(.{0,20})\b(chief of staff|founder['\u2019]?s office|founders office|founder['\u2019]?s associate|founder associate)\b(.{0,20})",
+            re.IGNORECASE,
+        )
         role_match = role_pattern.search(post.text)
         if role_match:
             exact_role = role_match.group(0).strip()
@@ -175,10 +371,26 @@ class DeterministicClassifier:
         # Company Name
         company_name = "Unclear"
         company_pattern = re.search(r"(?:at|join) ([A-Z][a-zA-Z0-9\s\&]+?)(?:\.|,|\n|$| hiring| is looking)", post.text)
+        if not company_pattern:
+            # Fallback: "<Company> is/are hiring ..." — the most common phrasing
+            # the primary regex misses. Pronoun subjects are excluded so
+            # "We are hiring" never yields Company="We". Display only; scope of
+            # target roles is unchanged.
+            company_pattern = re.search(
+                r"\b(?!(?:We|I|It|They|You|He|She)\b)([A-Z][A-Za-z0-9&\.\-]*(?:\s+[A-Z][A-Za-z0-9&\.\-]*){0,3})\s+(?:is|are)\s+hiring\b",
+                post.text,
+            )
         if company_pattern and len(company_pattern.group(1)) < 30:
-            company_name = company_pattern.group(1).strip()
+            candidate = company_pattern.group(1).strip()
+            # BUG A: a generic geographic / country / government term must never
+            # be surfaced as the hiring company (e.g. "India is hiring..." from a
+            # national jobs aggregator). Keep company "Unclear" instead.
+            if candidate.lower() not in GENERIC_PLACEHOLDER_COMPANIES:
+                company_name = candidate
         elif post.company and post.company != "Unclear":
-            company_name = post.company
+            # post.company is scraper metadata; treat generic placeholders the same.
+            if post.company.lower() not in GENERIC_PLACEHOLDER_COMPANIES:
+                company_name = post.company
 
         # CTC
         ctc = "Not Disclosed"
@@ -227,10 +439,21 @@ class DeterministicClassifier:
         if any(ev in text_lower for ev in hm_evidence):
             is_hm = True
         # we don't have author title, but if we did, we'd check it. We'll rely on text evidence.
-        
+
         if is_hm:
-            hiring_manager_name = post.author_name
-            hiring_manager_linkedin = post.author_profile_url
+            # BUG B: a LinkedIn URL containing "/company/" identifies a COMPANY
+            # PAGE (e.g. ".../company/digitayal/posts"), never a person who is
+            # hiring. Only a person's "/in/..." profile URL may be surfaced as
+            # the hiring manager's own LinkedIn. If the author is a company
+            # account, we keep the manager "Unclear" unless a separately-named
+            # person is found later in enrichment. The company account may still
+            # serve as evidence that this is a genuine hiring post.
+            if _is_person_profile_url(post.author_profile_url):
+                hiring_manager_name = post.author_name
+                hiring_manager_linkedin = post.author_profile_url
+            else:
+                hiring_manager_name = "Unclear"
+                hiring_manager_linkedin = "Unclear"
 
         # Description
         desc_clean = re.sub(r'\s+', ' ', post.text).strip()

@@ -59,6 +59,51 @@ def test_reject_internship():
     assert result.is_valid == False
     assert "internship" in result.classification_reason.lower()
 
+
+# ── Phase-9E Bug 1: internship detection must be word-bounded ────────────────
+
+def test_international_does_not_trigger_internship():
+    # "international" contains the substring "intern" but is not an internship.
+    post = make_post(
+        "UNISON INTERNATIONAL CONSULTING is hiring a Chief of Staff to CEO in Ahmedabad, 50 LPA."
+    )
+    result = classifier.classify(post)
+    assert result.is_valid is True
+    assert "internship" not in result.classification_reason.lower()
+
+
+def test_interested_does_not_trigger_internship():
+    post = make_post(
+        "We're hiring a Founder's Office Associate. DM if interested in the opening. Bangalore."
+    )
+    result = classifier.classify(post)
+    assert result.is_valid is True
+    assert "internship" not in result.classification_reason.lower()
+
+
+def test_internet_does_not_trigger_internship():
+    post = make_post(
+        "We're hiring a Founder's Office Executive at Acme, Bangalore. "
+        "Internet marketing knowledge preferred."
+    )
+    result = classifier.classify(post)
+    assert result.is_valid is True
+    assert "internship" not in result.classification_reason.lower()
+
+
+@pytest.mark.parametrize("desc", [
+    "Founder's Office Intern in Mumbai",
+    "Founder's Office internship opportunity in Delhi",
+    "hiring interns for the Founder's Office",
+    "Founder's Office internships available",
+    "hiring an interning founder's office associate",
+])
+def test_genuine_internship_still_rejects(desc):
+    post = make_post(desc)
+    result = classifier.classify(post)
+    assert result.is_valid is False
+    assert "internship" in result.classification_reason.lower()
+
 def test_reject_fo_ambiguous():
     post = make_post("FO hiring in Bangalore")
     result = classifier.classify(post)
@@ -77,12 +122,12 @@ def test_valid_remote_india():
     assert result.is_valid == True
     assert result.market == "Remote - India"
 
-def test_valid_fo_with_lpa():
+def test_reject_comp_alone_without_india_context():
     post = make_post("Founder's Office Associate, ₹15 LPA. Apply now.")
     result = classifier.classify(post)
-    assert result.is_valid == True
-    assert result.market == "India"
-    assert result.india_relevance == "Indian Company"
+    assert result.is_valid == False
+    assert "unclear india relevance" in result.classification_reason.lower()
+    assert "compensation" in result.classification_reason.lower()
 
 def test_reject_lpa_alone():
     post = make_post("Chief of Staff salaries can reach ₹20 LPA.")

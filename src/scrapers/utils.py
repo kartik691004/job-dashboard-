@@ -71,16 +71,9 @@ def safe_get(
                     verify=verify_ssl,
                 )
             except requests.exceptions.SSLError:
-                if attempt == retries - 1:
-                    raise
-                logger.debug(f"SSL verify failed for {url[:60]}, retrying without verify...")
-                resp = session.get(
-                    url,
-                    headers=get_headers(referer),
-                    timeout=timeout,
-                    allow_redirects=True,
-                    verify=False,
-                )
+                # Never fall back to verify=False; a cert failure is a hard stop.
+                logger.debug(f"SSL verify failed for {url[:60]}, aborting retries.")
+                raise
             if resp.status_code == 200:
                 return resp
             elif resp.status_code == 429:

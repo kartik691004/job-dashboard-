@@ -213,7 +213,7 @@ class ApifyClient:
         for url in urls:
             try:
                 time.sleep(1.5)  # rate limiting
-                resp = self._session.get(url, timeout=15, verify=False)
+                resp = self._session.get(url, timeout=15)
                 if resp.status_code != 200:
                     logger.debug(f"HTTP {resp.status_code} for {url[:60]}")
                     continue
@@ -339,7 +339,7 @@ class ApifyClient:
         for url in urls:
             try:
                 time.sleep(1.0)
-                resp = self._session.get(url, timeout=12, verify=False, allow_redirects=True)
+                resp = self._session.get(url, timeout=12, allow_redirects=True)
                 if resp.status_code != 200:
                     continue
 
@@ -1418,7 +1418,7 @@ class ApifyClient:
 
         # Direct scrape fallback
         try:
-            resp = self._session.get(url, timeout=15, verify=False)
+            resp = self._session.get(url, timeout=15)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "lxml")
                 for tag in soup(["script", "style", "nav", "footer", "header"]):

@@ -1,8 +1,17 @@
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("GoogleSheetsExporter")
+
+# Legacy src/ layer. The live pipeline writes via app/sheets_writer.py. This
+# exporter must never touch the production spreadsheets, and it must never
+# clear or create sheets without an explicit opt-in.
+FORBIDDEN_SPREADSHEET_IDS = {
+    "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis",  # JOBDASHBOARD (production)
+    "1f6b_QgkmeOAu0XFpiYyDHMgfkXFKEsrX4gl8IjWbI1k",  # FTB internships (read-only)
+}
 
 try:
     import gspread
@@ -51,8 +60,11 @@ def _guess_department(role: str) -> str:
 
 class GoogleSheetsOutreachExporter:
     """
-    Exports collected Indian startup funding & founder intelligence into
-    a Google Sheets workbook with 6 sheets.
+    LEGACY: exports collected Indian startup funding & founder intelligence into
+    a Google Sheets workbook with 6 sheets. Inert in the current pipeline; kept
+    for reference. Guarded so it cannot create a spreadsheet implicitly, cannot
+    target the production/read-only spreadsheets, and cannot clear existing
+    worksheets without LEGACY_EXPORTER_OVERWRITE=true.
     """
 
     def __init__(
@@ -89,14 +101,22 @@ class GoogleSheetsOutreachExporter:
 
     def _get_or_create_spreadsheet(self):
         client = self._get_client()
-        if self.spreadsheet_id:
-            try:
-                return client.open_by_key(self.spreadsheet_id)
-            except gspread.SpreadsheetNotFound:
-                logger.warning(f"Spreadsheet {self.spreadsheet_id} not found, creating new one")
-        spreadsheet = client.create(self.spreadsheet_name)
-        logger.info(f"Created new spreadsheet: {spreadsheet.url}")
-        return spreadsheet
+        if not (self.spreadsheet_id or "").strip():
+            raise ValueError(
+                "No spreadsheet_id configured; this exporter refuses to "
+                "create a spreadsheet implicitly."
+            )
+        if self.spreadsheet_id.strip() in FORBIDDEN_SPREADSHEET_IDS:
+            raise PermissionError(
+                "This legacy exporter must never write to the production "
+                "(JOBDASHBOARD) or read-only (FTB internships) spreadsheets."
+            )
+        try:
+            return client.open_by_key(self.spreadsheet_id)
+        except gspread.SpreadsheetNotFound as exc:
+            raise RuntimeError(
+                f"Spreadsheet {self.spreadsheet_id} not found; refusing to create one."
+            ) from exc
 
     def export_workbook(
         self,
@@ -222,9 +242,18 @@ class GoogleSheetsOutreachExporter:
             },
         }
 
+        allow_overwrite = os.environ.get(
+            "LEGACY_EXPORTER_OVERWRITE", ""
+        ).strip().lower() in ("1", "true", "yes")
+
         existing_sheets = {ws.title: ws for ws in spreadsheet.worksheets()}
         for sheet_name, spec in sheets_spec.items():
             if sheet_name in existing_sheets:
+                if not allow_overwrite:
+                    raise RuntimeError(
+                        f"Worksheet '{sheet_name}' already exists; refusing to "
+                        "clear it. Set LEGACY_EXPORTER_OVERWRITE=true to allow."
+                    )
                 worksheet = existing_sheets[sheet_name]
                 worksheet.clear()
             else:

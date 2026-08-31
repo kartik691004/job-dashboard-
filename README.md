@@ -1,127 +1,113 @@
-# 🚀 AI Indian Startup Funding & Founder Intelligence
+# LinkedIn Hiring Intelligence
 
-A production-ready, backend-focused automation platform built with **Python 3**, **FastAPI**, **Gemini AI**, and **n8n** to discover **recently funded Indian startups (2025+)** and extract **founder/leadership intelligence** — LinkedIn profiles, emails, roles, and funding details.
+A Python/FastAPI backend that discovers LinkedIn posts where an **Indian company is actively hiring for a Founder's Office or Chief of Staff role**, classifies them through a strict quality gate, and writes rich leads to a Google Sheet. Quality over quantity: only posts that pass all seven classification stages become leads.
 
-The system automatically discovers funded startups across top VCs and tech media, extracts **funding amount, round, investors, and date**, finds **founders, C-suite, HR, and tech leads**, scrapes **LinkedIn profiles and contact details**, and exports a **6-Sheet Excel Reporting Workbook (`excel/Indian_Startup_Outreach.xlsx`)**.
-
-The pipeline runs **daily at 1:00 AM IST** by default, scraping the web and LinkedIn. On each run it refreshes existing startups and discovers new ones, maintaining a target of **50-100 startups**.
-
----
-
-## 🏗️ System Architecture & 6-Stage Pipeline
+## How it works
 
 ```text
-1. Startup Discovery (VC Portals & Tech Media, 2025+ funding)
-        │
-        ▼
-2. AI Clean, Score & Enrich Funding Data (Gemini)
-        │
-        ▼
-3. Founder & C-Suite Discovery (LinkedIn, team pages, web search)
-        │
-        ▼
-4. Key Contact Discovery (HR, Tech Leads, Management)
-        │
-        ▼
-5. LinkedIn Profile & Email Extraction
-        │
-        ▼
-6. 6-Sheet Excel Export (`excel/Indian_Startup_Outreach.xlsx`)
+1. Scrape        one bulk Apify actor run over all SEARCH_QUERIES
+                 (datadoping/linkedin-posts-search-scraper)
+        |
+2. Deduplicate   drop posts already seen in this batch
+        |
+3. Classify      7-stage pipeline in app/classifier.py:
+                 exclusions -> role keywords -> hiring-intent proximity
+                 -> India-only market gate -> field extraction
+                 -> confidence scoring -> acceptance gate
+        |
+4. Sheet dedupe  skip rows whose Source Link already exists in the tab
+        |
+5. Write         append accepted leads to Google Sheets
 ```
 
----
+Extracted fields include exact role, company, CTC, cold email (when posted), hiring manager name/LinkedIn, location, experience requirement, employment type and a confidence score.
 
-## 📂 Project Directory Layout
+## The 19-column schema
 
-```text
-FTB/
-├── src/
-│   ├── ai/                  # Gemini AI processing
-│   ├── config.py            # Settings, paths, queries
-│   ├── exporters/           # 6-Sheet Excel Workbook Builder
-│   ├── pipeline/            # Orchestrator + Scheduler
-│   ├── scrapers/            # Web, LinkedIn, funding scrapers
-│   └── utils/               # Scoring engine
-├── app/
-│   └── main.py              # FastAPI Application Server
-├── n8n/
-│   └── workflows/
-│       └── startup_outreach_workflow.json
-├── excel/                   # Output Excel Workbooks
-├── logs/                    # System & execution logs
-├── data/                    # Data stores
-├── docker/
-│   ├── Dockerfile
-│   └── docker-compose.yml
-├── index.html               # Control Hub & Live Preview UI
-├── requirements.txt
-└── README.md
-```
+Defined once in `app/sheets_writer.EXPECTED_HEADERS`:
 
----
+Company Name, Major Category, Exact Role, CTC, Cold Email, Hiring Manager Name, Hiring Manager LinkedIn, Source Link, Description, Confidence Score, Location, Type, Experience Requirement, Market, India Relevance, Post Date, Scraped At, Classification Reason, Status
 
-## 📊 6-Sheet Excel Workbook Specification
+## API
 
-The system generates **`excel/Indian_Startup_Outreach.xlsx`** featuring 6 dedicated sheets auto-sorted by Priority Score:
-
-1. **`Startups`**: Startup ID, Company, Industry, Funding Stage, Funding Amount, Investors, City, Website, Source URL
-2. **`Funding Rounds`**: Startup ID, Company, Round Name, Amount Raised, Announced Date, Lead Investor, Co-Investors
-3. **`Founders & Leadership`**: Startup ID, Company, Founder Name, CEO, Position, LinkedIn URL, Website Profile, Email
-4. **`Key Contacts`**: Startup ID, Company, Contact Name, Role, Department, LinkedIn URL, Email
-5. **`LinkedIn Profiles`**: Startup ID, Company, Name, Role, LinkedIn URL
-6. **`Logs`**: Date, Companies Found, Companies Added, Contacts Found, Errors, Duration, Status
-
----
-
-## ⚡ Priority Scoring Algorithm
-
-Each startup is assigned a dynamic score (0 - 100):
-- **Funding Stage Weight**: Unicorn / Series D+ (+40 pts), Series A/B (+30 pts), Seed (+20 pts)
-- **Funding Amount**: $50M+ (+30 pts), $10M+ (+20 pts), $1M+ (+10 pts)
-- **Indian HQ Signal**: Verified HQ in India (+15 pts)
-- **Hot Sector**: AI, FinTech, HealthTech, DeepTech (+10 pts)
-
----
-
-## 🌐 FastAPI REST API Endpoints
-
-Run server with `python app/main.py` (Default: `http://localhost:8000`):
+Run the server with `python app/main.py` (default `http://localhost:8000`).
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/` | Health check & service status |
-| `GET` | `/startups` | Returns discovered Indian startups (2025+ funding, priority sorted) |
-| `GET` | `/founders?company=Zepto` | Returns founders, CEO, CTO with LinkedIn & email |
-| `GET` | `/contacts?company=Zepto` | Returns HR, tech leads, management with LinkedIn & email |
-| `GET` | `/export` | Downloads generated 6-sheet Excel workbook |
-| `POST` | `/run?limit=100` | Triggers funding & founder intelligence pipeline |
-| `GET` | `/schedule/status` | Daily 1AM IST scheduler status |
+| `GET` | `/health` | Service status |
+| `POST` | `/run?limit=10` | Trigger scrape + classify + write (`limit` = max posts per keyword batch) |
+| `GET` | `/leads?limit=200` | Read recent leads from the sheet, newest first, with KPIs |
+| `POST` | `/outreach?max_per_run=5` | Cold-email Status=New leads that carry a real Cold Email; flips them to Contacted (respects DRY_RUN) |
+| `GET` | `/` | Serves `index.html`, the control-hub dashboard |
 
----
+## Cold outreach
 
-## 🐳 Deployment & Execution
+The pipeline writes leads with `Status=New`. When a lead carries a real `Cold Email`
+address (rare — posts seldom include one), the outreach step mails it and flips
+Status to `Contacted`:
 
-### 1. Start FastAPI Server
 ```bash
-python app/main.py
+python run_cold_outreach.py            # dry-run preview from .env's DRY_RUN
+python run_cold_outreach.py --live     # actually send + update Status cells
+python run_cold_outreach.py --live --max 5
 ```
 
-### 2. Trigger Pipeline for 100 Startups
-```bash
-curl -X POST "http://localhost:8000/run?limit=100"
+Configuration lives in `.env` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+`SMTP_PASSWORD`, `OUTREACH_FROM_EMAIL`, `OUTREACH_SENDER_NAME`,
+`OUTREACH_MAX_PER_RUN`) — see `.env.example`. Safety: worksheet resolved by name,
+gid=0 refused, header schema verified before any write, only the Status cell of
+mailed rows is modified, sends capped per invocation, and nothing sends while
+`DRY_RUN=true`.
+
+## Scheduling
+
+Windows scheduled task **"JobDashboard LinkedIn Pipeline"** runs `run_daily.bat` -> `run_daily.py` Mon/Wed/Fri at 01:00 IST, logging to `logs\scheduled_run.log`. `run_daily.py` forces `DRY_RUN=false` for scheduled runs and checks remaining Apify budget before scraping, aborting if the projected cost exceeds the cycle remainder.
+
+## Google Sheets safety boundaries
+
+- Writes go ONLY to spreadsheet `15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis` (JOBDASHBOARD), worksheet exactly **"LinkedIn Hiring Leads"**.
+- Its first tab (gid=0) is an existing Job Board: never read, append, or restructure it.
+- Spreadsheet `1f6b_QgkmeOAu0XFpiYyDHMgfkXFKEsrX4gl8IjWbI1k` (FTB internships) is READ-ONLY reference material.
+- With `DRY_RUN=true` in `.env`, the pipeline scrapes and classifies but never modifies the sheet.
+
+Before touching sheets manually, run `python verify_sheets.py` — a read-only preflight that checks auth, worksheet-by-name resolution and header compatibility.
+
+## Apify budget discipline
+
+Free plan: $5.00 per cycle starting on the 11th; ~$0.00155/post, ~$0.30 per run at `limit=10` — so at most three runs per week. Check spend before raising limits. If a scrape returns zero posts, check dataset records for an in-band `error` key before blaming the pipeline code.
+
+## Project layout
+
+```text
+app/
+  main.py           FastAPI server (/health, /run, /leads, /outreach, /)
+  orchestrator.py   scrape -> dedupe -> classify -> sheet-dedupe -> write
+  classifier.py     strict 7-stage classification pipeline
+  outreach.py       cold-mail step: Status=New + real email -> send -> Contacted
+  config.py         env vars, search queries, keyword lists, thresholds
+  models.py         RawPost / ClassifiedPost Pydantic models
+  sheets_writer.py  guarded Google Sheets writes, EXPECTED_HEADERS schema
+  geo.py            India-market geography helpers
+  sources/          Apify integrations (datadoping_source.py is live)
+tests/              pytest suite (132 passed, 1 skipped)
+tools/              one-off migration utilities
+data/               run artifacts, backups, analysis dumps
+docker/             Dockerfile + docker-compose.yml
+n8n/                legacy workflow export
+index.html          control hub wired to /health, /leads, POST /run
+run_daily.py/.bat   scheduler entry point
+run_cold_outreach.py manual cold-mail entry point (--live to send)
+verify_sheets.py    read-only sheets preflight
 ```
 
-### 3. Deploy via Docker Compose
+The older `src/` layer (startup-discovery scrapers, Excel/GSheets exporters) is legacy and inert in the live pipeline; its Google exporter is guarded against touching production spreadsheets.
+
+## Development
+
 ```bash
-cd docker
-docker-compose up -d
+pip install -r requirements.txt
+copy .env.example .env        # add service-account credentials + SHEET_ID
+python -m pytest              # test suite
+python verify_sheets.py       # read-only preflight
+python app/main.py            # start API
 ```
-
----
-
-## 🔮 Future Enhancements
-- LinkedIn profile scraping via official API / Playwright
-- Automated daily monitoring of portfolio companies
-- CRM synchronization (HubSpot, Airtable, Notion)
-- Email verification via SMTP checks
-- Investor relationship mapping
