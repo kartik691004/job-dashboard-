@@ -35,10 +35,18 @@ _AT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# "<Company> is/are hiring ..."
+# "<Company> is/are hiring / building / looking for ..."
+# (a) Two negative lookbehinds prevent matching inside possessive / curly-
+#     apostrophe phrases: (?<!['\u2019]) blocks "Founder\u2019s → s ...",
+#     (?<!['\u2019]s\s) blocks "Founder\u2019s Office → Office ...".
+# (b) Dot removed from word character class prevents matching across sentence
+#     boundaries ("...space in India.\n\nWe are looking for..." → "space").
+# (c) "who" blocked to prevent relative-clause matches ("Who we are looking
+#     for" is NOT a hiring statement).
 _IS_HIRING_PATTERN = re.compile(
-    r"\b(?!(?:we|i|it|they|you|he|she)\b)([A-Z][A-Za-z0-9&.\-]*(?:\s+[A-Z][A-Za-z0-9&.\-]*){0,3})"
-    r"\s+(?:is|are)\s+hiring\b",
+    r"\b(?!(?:we|who|i|it|they|you|he|she)\b)(?<!['\u2019])(?<!['\u2019]s\s)"
+    r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,3})"
+    r"\s+(?:is|are)\s+(?:hiring\b|building\b|looking\s+for\b)",
     re.IGNORECASE,
 )
 
@@ -51,6 +59,56 @@ _AT_COMPANY = re.compile(
 )
 
 _LEGAL_FORMS = re.compile(r"\b(Pvt\.?\s*Ltd|Private\s+Limited|(?:Technologies?|Tech|Labs?|Systems|Solutions|Digital|Ventures|Group|Industries))\b", re.IGNORECASE)
+
+# "| <Company> LLP / Ltd / Technologies ... |" — a card/header line where the
+# company name sits on the other side of a "|" separator (e.g. the styled
+# "We're Hiring: Founder's Office | Noida | Amama Partners LLP" header).
+_HEADER_COMPANY = re.compile(
+    r"(?<=\|)\s*([A-Z][A-Za-z0-9&.\-' ]*?(?:Pvt\.?\s*Ltd|Private\s+Limited|"
+    r"Technologies?|Tech|Labs?|Systems|Solutions|Ventures|Group|Industries|"
+    r"Works|Inc|LLC|LLP|Corp|Brands?|Startups?)\b)",
+    re.IGNORECASE,
+)
+
+# "leading <Company>, an organisation/startup" and "help me lead <Company>, ..."
+_ORG_LEAD_RE = re.compile(
+    r"\b(?:help(?:ing|s|ed)?\s+(?:me|us|them)?\s*)?lead(?:ing|er)?\s+"
+    r"([A-Z][A-Za-z0-9&.\-]*)\s*,?\s+(?:an?|the)\s+"
+    r"(?:organisation|organization|company|startup|firm|team)\b",
+    re.IGNORECASE,
+)
+
+# Generic descriptor words that, in combination, signal a descriptive (non-named)
+# phrase rather than an actual employer: e.g. "a fast-growing MedTech startup",
+# "a leading startup", "a fintech company". A real brand (e.g. "Zavity
+# Aerospace", "Maple Fashion", "BCT Ventures") contains at least one token that
+# is NOT in this set and is therefore preserved.
+_GENERIC_DESCRIPTOR_WORDS = {
+    "a", "an", "the",
+    "fast", "growing", "leading", "top", "new", "well", "known", "reputed",
+    "promising", "emerging", "scaling", "bootstrapped", "funded", "backed",
+    "financing", "seeded", "venture", "ventures", "early", "stage", "fastest",
+    "startup", "startups", "company", "companies", "brand", "brands",
+    "business", "businesses", "firm", "firms", "studio", "studios", "agency",
+    "agencies", "fintech", "medtech", "healthtech", "edtech", "insurtech",
+    "clean", "deep", "saas", "tech", "technology", "technologies", "platform",
+    "product", "products", "service", "services", "industry", "industries",
+    "digital", "organisation", "organization", "team", "entity",
+    "our", "my", "your", "their", "its", "his", "her",
+    "pvt", "private", "limited", "ltd", "llp", "llc", "inc", "corp",
+    "works", "labs", "group", "systems", "solutions",
+}
+
+
+def _is_generic_descriptor(cand: str) -> bool:
+    """True when a captured 'company' is actually a generic quantified/
+    descriptive phrase (e.g. 'a fast-growing MedTech', 'a leading startup',
+    'a fintech company') rather than a named employer. A real brand that
+    contains any non-generic proper-noun token is preserved."""
+    words = [w for w in re.split(r"[^a-z0-9]+", (cand or "").lower()) if w]
+    if not words:
+        return True
+    return all(w in _GENERIC_DESCRIPTOR_WORDS for w in words)
 
 
 def _clean_candidate(raw: str) -> str:
@@ -68,7 +126,7 @@ def _explicit_in_post(text: str) -> Optional[str]:
     if not text:
         return None
 
-    for pat in (_AT_PATTERN, _IS_HIRING_PATTERN, _AT_COMPANY):
+    for pat in (_AT_PATTERN, _IS_HIRING_PATTERN, _AT_COMPANY, _HEADER_COMPANY, _ORG_LEAD_RE):
         m = pat.search(text)
         if not m:
             continue
@@ -76,7 +134,10 @@ def _explicit_in_post(text: str) -> Optional[str]:
         # With IGNORECASE the [A-Z] groups also swallow location prepositions
         # ("in Bengaluru"); truncate at those boundaries.
         cand = _truncate_at_preposition(cand)
-        if cand and len(cand) >= 2:
+        # Reject generic quantified / descriptive phrases ("a fast-growing
+        # MedTech startup", "a leading company") that are captured as if they
+        # were an employer name. Only an actual named employer is surfaced.
+        if cand and len(cand) >= 2 and not _is_generic_descriptor(cand):
             return cand
     return None
 

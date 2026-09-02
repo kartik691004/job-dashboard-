@@ -350,6 +350,311 @@ def test_no_fabricated_email_even_with_known_domain():
     assert e.cold_email in ("Not Available", "")
 
 
+# ── BUG-A regression: generic descriptor must not become a Company name ───────
+def test_generic_descriptor_not_a_company():
+    # "a fast-growing MedTech startup" is a descriptive phrase, not a named
+    # employer. The post advertises no company -> must stay Unclear.
+    e = ENRICH.enrich_from_classified(
+        make_classified("Join a fast-growing MedTech startup and work closely with leadership. Apply here."))
+    assert e.company_name == "Unclear"
+
+
+def test_leading_startup_descriptor_not_a_company():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Join a leading startup as a Chief of Staff in Bengaluru."))
+    assert e.company_name == "Unclear"
+
+
+def test_fintech_company_descriptor_not_a_company():
+    e = ENRICH.enrich_from_classified(
+        make_classified("We are at a fintech company hiring a Founder's Office Associate in Mumbai."))
+    assert e.company_name == "Unclear"
+
+
+def test_genuine_named_company_still_extracted_from_join():
+    # A real brand after "Join" with a legal-form suffix is still surfaced.
+    e = ENRICH.enrich_from_classified(
+        make_classified("Join Zavity Aerospace Technologies as a Founder's Office Associate in Bengaluru."))
+    assert e.company_name == "Zavity Aerospace Technologies"
+
+
+def test_genuine_named_company_is_not_a_descriptor():
+    # The generic-descriptor guard must NOT swallow a real brand in the
+    # "at <Name> in <city>" position.
+    e = ENRICH.enrich_from_classified(
+        make_classified("We are hiring a Founder's Office Associate at Zavity Aerospace in Bengaluru."))
+    assert e.company_name == "Zavity Aerospace"
+
+
+def test_genuine_named_company_from_is_hiring_still_extracted():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Open Links Foundation is hiring a Founder's Office Manager in Noida."))
+    assert e.company_name == "Open Links Foundation"
+
+
+def test_llm_unclear_not_overridden_by_generic_descriptor():
+    # Deterministic must not surface a generic descriptor; when it would have,
+    # the field stays Unclear and the LLM's Unclear is honoured (no wrong
+    # deterministic value beats an LLM-confirmed Unclear).
+    e = ENRICH.enrich_from_classified(
+        make_classified("Join a fast-growing MedTech startup and work closely with leadership."))
+    assert e.company_name == "Unclear"
+
+
+# ── BUG-B regression: in-post emails preserved regardless of local part ───────
+def test_baishali_email_preserved():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Drop your resume at baishali@talentsocio.com for the Founder's Office role.",
+                        raw_company="Acme"))
+    assert e.cold_email == "baishali@talentsocio.com"
+    assert e.email_status == EmailStatus.FOUND.value
+
+
+def test_payal_email_preserved():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Hiring Chief of Staff. Apply at payal@allcadservices.com",
+                        raw_company="Acme"))
+    assert e.cold_email == "payal@allcadservices.com"
+
+
+def test_founders_email_preserved():
+    e = ENRICH.enrich_from_classified(
+        make_classified("We at GoNanny are hiring for a Founder's Office. Email founders@gonanny.in",
+                        raw_company="GoNanny"))
+    assert e.cold_email == "founders@gonanny.in"
+
+
+def test_classified_cold_email_forwarded_and_preserved():
+    # The classifier-extracted email is forwarded into enrich() rather than
+    # discarded, even when post_text is not re-scanned from scratch (i.e. the
+    # classified value is used as the preserved post-text email).
+    e = ENRICH.enrich(
+        post_text="hiring Chief of Staff. Apply.",
+        classified_cold_email="recruit.hr@zavity.co",
+        source_link="https://lnkd.in/x",
+    )
+    assert e.cold_email == "recruit.hr@zavity.co"
+    assert e.email_status == EmailStatus.FOUND.value
+
+
+def test_blocked_email_still_rejected():
+    # Personal Gmail remains blocked: never surfaced as a business contact.
+    e = ENRICH.enrich_from_classified(
+        make_classified("DM me at ravi.kumar@gmail.com for the Founder's Office role"))
+    assert e.cold_email in ("Not Available", "")
+
+
+def test_blocklisted_holder_domain_still_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Apply at jobs@example.com for the Founder's Office role"))
+    assert e.cold_email in ("Not Available", "")
+
+
+def test_no_email_never_fabricated_from_domain():
+    # Known domain but no email in the post => Not Available, never a guess.
+    e = ENRICH.enrich_from_classified(
+        make_classified("Founder's Office role at zavity.co in Mumbai", raw_company="Zavity"))
+    assert e.cold_email in ("Not Available", "")
+
+
+def test_external_verified_email_still_requires_public_prefix():
+    # External/provider emails still pass through the stricter public-business
+    # guard (the relaxed in-post rule does not weaken external verification).
+    e = ENRICH.enrich("Founder's Office Associate at Zavity in Bangalore.",
+                      job_metadata_company="Zavity",
+                      verified_emails={"company_careers_page": "bob@zavity.co"})
+    assert e.cold_email in ("Not Available", "")
+
+
+# ── Phase 12.5 hardening: "X is building..." employer extraction ────────────
+def test_is_building_captures_company():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "BCT Ventures is building an AI-native consumer brands platform "
+            "focused on creating and scaling the next generation of nutrition & "
+            "wellness brands. We're hiring a Chief of Staff – Founder's Office in Mumbai."))
+    assert e.company_name == "BCT Ventures"
+
+
+def test_is_building_generic_descriptor_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("A fast-growing MedTech startup is building a new AI platform. "
+                        "We're hiring a Founder's Office role in Pune."))
+    assert e.company_name == "Unclear"
+
+
+def test_is_building_possessive_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Our startup is building the next generation of consumer brands. "
+                        "We're hiring a Chief of Staff in Mumbai."))
+    assert e.company_name == "Unclear"
+
+
+def test_is_building_pronoun_blocked():
+    e = ENRICH.enrich_from_classified(
+        make_classified("We are building something great at Acme in Bengaluru. "
+                        "Founder's Office role."))
+    assert e.company_name != "We"
+    assert e.company_name == "Acme"
+
+
+def test_is_building_preceding_apostrophe_not_captured():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "\U0001f680 We\u2019re Hiring | Chief of Staff \u2013 Founder\u2019s Office\n"
+            "BCT Ventures is building an AI-native consumer brands platform focused "
+            "on creating and scaling the next generation of nutrition & wellness "
+            "brands. We're hiring a Chief of Staff \u2013 Founder\u2019s Office in "
+            "Mumbai. CTC \u20b913\u201315 LPA."))
+    assert e.company_name == "BCT Ventures"
+
+
+def test_is_building_sentence_boundary_not_captured():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "We are #hiring the Founder's Office for our client,a VC-funded "
+            "Climate-Tech startup, disrupting the Battery Energy Storage Systems "
+            "(BESS) space in India.\n\n\nWe are looking for a Chief of Staff to "
+            "work as the strategic right hand to our founders."))
+    assert e.company_name == "Unclear"
+
+
+def test_is_looking_for_relative_clause_who_blocked():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "We are hiring a Founder's Office associate. Who we are looking for: "
+            "2 to 4 years of experience and a strong foundation in the Indian "
+            "energy sector."))
+    assert e.company_name == "Unclear"
+
+
+# ── Phase 12.5 hardening: "X is looking for..." employer extraction ────────
+def test_is_looking_for_captures_company():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "Luar Beauty is looking for a Founders Office Associate to join "
+            "their team in Mumbai. This is a great opportunity for someone "
+            "who enjoys working in a fast-paced environment."))
+    assert e.company_name == "Luar Beauty"
+
+
+def test_is_looking_for_generic_descriptor_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("A leading fintech company is looking for a Chief of Staff "
+                        "in Bengaluru. Join us."))
+    assert e.company_name == "Unclear"
+
+
+def test_is_looking_for_possessive_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Their team is looking for a Founder's Office Associate "
+                        "in Mumbai. Apply now."))
+    assert e.company_name == "Unclear"
+
+
+# ── Phase 12.5 hardening: header/card company extraction ───────────────────
+def test_header_card_company_extracted():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "🔥 We're Hiring: Founder's Office | Noida | Amama Partners LLP 🔥*\n"
+            "Want a front-row seat to building a company? Work directly with "
+            "the Founder & CEO. Send CV to hiring@amama.com."))
+    assert e.company_name == "Amama Partners LLP"
+
+
+def test_header_card_no_legal_form_ignored():
+    e = ENRICH.enrich_from_classified(
+        make_classified("🔥 We're Hiring: Founder's Office | Noida | Mumbai 🔥*\n"
+                        "Apply via DM."))
+    assert e.company_name == "Unclear"
+
+
+def test_header_card_pure_generic_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("🔥 Hiring | Private Limited | Apply 🔥*\n"
+                        "We're hiring a Chief of Staff in Pune."))
+    assert e.company_name == "Unclear"
+
+
+def test_header_card_real_brand_preserved():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Hiring: Chief of Staff | Zavity Technologies | Noida\n"
+                        "Apply now."))
+    assert e.company_name == "Zavity Technologies"
+
+
+# ── Phase 12.5 hardening: org-lead / "lead X, an organisation" ──────────────
+def test_org_lead_captures_company():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "I thought of hiring a Chief of Staff. Not specifically CHIEF OF STAFF; "
+            "it can be anyone who will be helping me lead Foxhog, an organisation "
+            "with more than 1200+ People, on a mission to fuel India with "
+            "interest-free debt. DM me."))
+    assert e.company_name == "Foxhog"
+
+
+def test_org_lead_helping_me_lead():
+    e = ENRICH.enrich_from_classified(
+        make_classified("helping us lead GoNanny, a startup focused on childcare. "
+                        "We're hiring a Founder's Office role."))
+    assert e.company_name == "GoNanny"
+
+
+def test_org_lead_no_org_noun_ignored():
+    e = ENRICH.enrich_from_classified(
+        make_classified("I want to lead the product team at a startup in Mumbai. "
+                        "Founder's Office role."))
+    assert e.company_name == "Unclear"
+
+
+def test_org_lead_pronoun_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("helping me lead the team, a company focused on growth. "
+                        "Hiring a Chief of Staff in Pune."))
+    assert e.company_name == "Unclear"
+
+
+# ── Phase 12.5 hardening: Tirupur / Tiruppur / Tirpur location ─────────────
+def test_tirupur_location_normalized():
+    e = ENRICH.enrich_from_classified(
+        make_classified(
+            "We're hiring: Creative & Digital Associate - Founder's Office\n"
+            "📍 Location: Tirupur, Tamilnadu, India\n"
+            "Hiring at Maple Fashion in Tirupur.",
+            company="Maple Fashion"))
+    assert "Tirupur" in e.location
+    assert "Tamil Nadu" in e.location
+
+
+def test_tiruppur_variant_normalized():
+    e = ENRICH.enrich(
+        "We are hiring a Chief of Staff in Tiruppur. CTC 15 LPA. Full-time.")
+    assert "Tirupur" in e.location
+    assert "Tamil Nadu" in e.location
+
+
+def test_tirpur_variant_normalized():
+    e = ENRICH.enrich(
+        "We are hiring a Chief of Staff in Tirpur. Apply now.")
+    assert "Tirupur" in e.location
+
+
+# ── Phase 12.5: existing generic-descriptor guard still holds ───────────────
+def test_generic_descriptor_with_looking_for_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("a fast-growing MedTech startup is looking for a "
+                        "Chief of Staff in Bengaluru."))
+    assert e.company_name == "Unclear"
+
+
+def test_generic_descriptor_with_building_rejected():
+    e = ENRICH.enrich_from_classified(
+        make_classified("Our team is building a new AI platform. "
+                        "We're hiring a Chief of Staff in Mumbai."))
+    assert e.company_name == "Unclear"
+
+
 # ── Integration: orchestrator wiring keeps decision boundaries ───────────────
 def test_orchestrator_enriches_only_accepted():
     from unittest.mock import patch

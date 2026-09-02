@@ -45,6 +45,9 @@ _LOCATION_CANON = {
     "kolkata": "Kolkata, West Bengal, India",
     "ahmedabad": "Ahmedabad, Gujarat, India",
     "jaipur": "Jaipur, Rajasthan, India",
+    "tirupur": "Tirupur, Tamil Nadu, India",
+    "tiruppur": "Tirupur, Tamil Nadu, India",
+    "tirpur": "Tirupur, Tamil Nadu, India",
 }
 
 _REMOTE_RE = re.compile(r"\b(remote|wfh|work\s+from\s+home)\b", re.IGNORECASE)
@@ -694,6 +697,7 @@ class Enricher:
             verified_emails=combined_verified_emails,
             provider_evidence=discovered,
             post_evidence_url=source_link,
+            classified_cold_email=classified_cold_email,
         )
 
         # ── Description vs summary (spec §11) ───────────────────────────────

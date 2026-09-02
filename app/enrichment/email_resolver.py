@@ -58,6 +58,16 @@ def _provider_email_for(provider_evidence, addr: str):
     return None
 
 
+def _domain_not_blocklisted(addr: str) -> bool:
+    """True when the email's domain is not on the blocklist (gmail / personal /
+    holder domains etc.). A blocklisted domain is never a public business
+    contact, so the address is never surfaced — regardless of local part."""
+    if not addr or "@" not in addr:
+        return False
+    domain = addr.rsplit("@", 1)[1].lower()
+    return not any(domain.endswith(d) for d in _BLOCKLIST_DOMAINS)
+
+
 def _is_public_business_email(addr: str) -> bool:
     """Heuristic guard: only obvious, explicitly-public business emails pass.
 
@@ -79,12 +89,18 @@ def _is_public_business_email(addr: str) -> bool:
 
 
 def from_post_text(post_text: str) -> Optional[str]:
-    """Return a verified public business email literally present in the post."""
+    """Return a verified public business email literally present in the post.
+
+    An email explicitly in the post is the strongest on-record public evidence
+    (spec §9 source 1), so it is accepted regardless of its local part — only
+    the domain must not be blocklisted (personal Gmail / holder / example
+    domains are never business contacts). The address is preserved verbatim.
+    """
     if not post_text:
         return None
     for m in _EMAIL_PATTERN.finditer(post_text):
         addr = m.group(0)
-        if _is_public_business_email(addr):
+        if _domain_not_blocklisted(addr):
             return addr
     return None
 
@@ -96,6 +112,7 @@ def resolve(
     verified_emails: Optional[Dict[str, str]] = None,
     provider_evidence=None,
     post_evidence_url: str = "",
+    classified_cold_email=None,
 ) -> EmailResolution:
     """Resolve a verified public contact email, or report it missing.
 
@@ -108,10 +125,22 @@ def resolve(
         SOURCE PRIORITY tier of the chosen verified email (never to fabricate).
     :param post_evidence_url: the LinkedIn post URL — evidence for an email
         literally present in the post text (TIER 3), when provided.
+    :param classified_cold_email: the email the deterministic classifier already
+        extracted from the same post. It is preserved (not discarded) and treated
+        as post-text evidence, subject to the same domain-blocklist guard.
     """
     # 1. Literal public business email in the post text (the strongest signal).
     literal = from_post_text(post_text)
     source = "post_text" if (post_text and literal) else ""
+
+    # 1b. Classifier-extracted email from the same post, preserved rather than
+    # discarded. Only honoured when it is a non-blocklisted business/work address
+    # (no fabrication, no personal-Gmail promotion).
+    classified = ""
+    if classified_cold_email and classified_cold_email not in ("Not Available", ""):
+        a = (classified_cold_email or "").strip()
+        if a and "@" in a and "." in a.split("@")[-1] and _domain_not_blocklisted(a):
+            classified = a
 
     # 2. Externally verified emails supplied by the caller.
     # IMPORTANT: even "verified" external emails must pass the public-business
@@ -129,8 +158,11 @@ def resolve(
                 break
 
     # Post-text email wins (it is the most explicit, on-record attribution).
+    # A classifier-extracted email from the same post is preserved as a backup.
     if literal:
         chosen, chosen_source = literal, source
+    elif classified:
+        chosen, chosen_source = classified, "post_text"
     else:
         chosen, chosen_source = external, ext_source
 
