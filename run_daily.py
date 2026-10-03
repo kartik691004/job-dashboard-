@@ -7,11 +7,15 @@ Mon/Wed/Fri 01:00 IST). Three things it must handle itself, because nothing else
 
 1. DRY_RUN: the scheduled run exists to write new leads, so this script forces
    DRY_RUN=false for its own process (before app.config loads) regardless of .env.
-   To pause automation, disable the scheduled task instead:
+   Because the write is live, the run ALWAYS opts into the Phase-24 production
+   gate (production_gate=True): only identifiable-company + verified-HM +
+   acceptable-source leads may reach the Sheet as New; everything else is held
+   as Review or rejected. To pause automation, disable the scheduled task instead:
        schtasks /Change /TN "JobDashboard LinkedIn Pipeline" /DISABLE
 
 2. Apify budget: the FREE plan allows $5.00 per cycle starting the 11th. A run costs
-   len(SEARCH_QUERIES) x max(limit, 10) x $0.00155 (~$0.30 at limit=10), so DAILY runs
+   len(SEARCH_QUERIES) x max(limit, 10) x $0.00155 (~$0.59 at limit=10 with the
+   Phase-17 38-query set, was ~$0.43 with 28), so DAILY runs
    would exhaust the cap mid-cycle and silently return zero leads — which is why the
    task fires three times a week. This script still checks live spend before every run
    and refuses when the projected cost does not fit what remains.
@@ -78,7 +82,10 @@ def main() -> None:
     # Imported here so the budget gate runs before any Sheets connection attempt.
     from app.orchestrator import Orchestrator
 
-    summary = Orchestrator().run_pipeline(limit=args.limit)
+    # Phase 25.1: live scheduled writes MUST pass the Phase-24 production
+    # gate. Without this, the orchestrator's invocation guard refuses the
+    # run (GATE_REQUIRED) instead of writing through the legacy gate-off path.
+    summary = Orchestrator(production_gate=True).run_pipeline(limit=args.limit)
 
     print(json.dumps(summary, indent=2))
     if summary.get("errors"):

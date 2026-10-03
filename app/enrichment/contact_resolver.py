@@ -26,8 +26,17 @@ from app.enrichment.schemas import (
     HiringManagerEvidence,
     HiringManagerResolution,
 )
+from app.classifier import _is_person_profile_url
+from app.extraction import extract_named_founder, extract_recruiter_signature
 
 # First-person hiring evidence: the author is the hiring side.
+# Must combine explicit hiring language with a PERSON author (not company page).
+# "We are hiring/seeking" (company voice) is DELIBERATELY absent: the frozen
+# test_author_not_auto_hiring_manager pins that company-voice posts must NOT
+# auto-attribute the author (the poster may be anyone sharing the company's
+# vacancy). Plural seeking remains a hiring SIGNAL and employer-CONTEXT for
+# the classifier gates — just not a name attribution. Bare "I am seeking" is
+# likewise absent (ambiguous with job seekers).
 _FIRST_PERSON_HIRING = re.compile(
     r"\b(?:i['\u2019]?m\s+(?:hiring|recruiting)|"
     r"i\s+am\s+(?:hiring|recruiting)|"
@@ -40,7 +49,18 @@ _FIRST_PERSON_HIRING = re.compile(
     re.IGNORECASE,
 )
 
+# Explicit named hiring manager / recruiter near contact action
+# "DM [Name] to apply", "Contact [Name] for this role", "Reach out to [Name]"
+_NAME_NEAR_HIRING_ACTION = re.compile(
+    r"(?:dm|contact|reach\s+out\s+to|message|email|speak\s+with)\s+"
+    r"([A-Z][A-Za-z'\-]+(?:\s+[A-Z][A-Za-z'\-]+){0,2})"
+    r"\s+(?:to\s+(?:apply|join)|for\s+(?:this\s+)?(?:role|position|opening|vacancy)|regarding\s+this\s+role)",
+    re.IGNORECASE,
+)
+
 # Recruiter / talent persona markers in the text.
+# NOTE: These are NOT sufficient on their own to attribute hiring manager.
+# They must be combined with explicit hiring evidence (Tier 2).
 _RECRUITER_PERSONA = re.compile(
     r"\b(?:recruit(?:er|ing|ment)|talent\s+(?:acquisition|team|partner)|"
     r"hiring\s+manager|hr\s+manager|people\s+team|talent\s+team)\b",
@@ -48,7 +68,9 @@ _RECRUITER_PERSONA = re.compile(
 )
 
 # Founder / leadership persona markers.
-# NOTE: deliberately avoids treating "Founder's Office" / "Founder's Associate"
+# NOTE: These are NOT sufficient on their own to attribute hiring manager.
+# They must be combined with explicit hiring evidence (Tier 2).
+# Deliberately avoids treating "Founder's Office" / "Founder's Associate"
 # (role titles) as a leadership-persona signal.
 _LEADERSHIP_PERSONA = re.compile(
     r"\b(?:"
@@ -131,6 +153,7 @@ def resolve(
     never invented).
 
     Never assumes the author is the hiring manager; never fabricates a URL.
+    A company-page author (/company/ URL) is NEVER a hiring manager.
     """
     text = post_text or ""
 
@@ -155,8 +178,46 @@ def resolve(
             evidence_snippet=_name_snippet(text, llm_hiring_manager_name) or "LLM attribution",
         )
 
+    # Tier 1b (Phase 16) — explicitly NAMED founder/leader ("my co-founder
+    # Rishi Jain"): a name with an explicit leadership role in a hiring post.
+    # The name is verbatim from the post; the URL is real only when a literal
+    # /in/ URL exists in the text, else Not Available (never fabricated).
+    _founder_name, _founder_role = extract_named_founder(text)
+    if _founder_name:
+        url = url_in_text.group(0) if url_in_text else "Not Available"
+        return HiringManagerResolution(
+            name=_founder_name,
+            linkedin_url=url,
+            is_author=_name_matches(_founder_name, author_name),
+            confidence=0.8,
+            evidence=HiringManagerEvidence.EXPLICIT_HIRING_MANAGER,
+            evidence_snippet=(
+                f"named in post: {_founder_name}"
+                + (f" ({_founder_role})" if _founder_role else "")
+            ),
+        )
+
+    # Tier 1c (Phase 16) — recruiter/TA signature block with contact
+    # ("Pooja Rani | Manager – Talent Acquisition" + phone/email, or the
+    # newline sign-off "Vignesh Chandrasekar / Sr HR Executive / 📧 …").
+    # Requires BOTH a hiring-side title and a contact token, so quoted names
+    # and candidate sign-offs never qualify.
+    _sig_name, _sig_title = extract_recruiter_signature(text)
+    if _sig_name:
+        url = url_in_text.group(0) if url_in_text else "Not Available"
+        return HiringManagerResolution(
+            name=_sig_name,
+            linkedin_url=url,
+            is_author=_name_matches(_sig_name, author_name),
+            confidence=0.8,
+            evidence=HiringManagerEvidence.RECRUITER_HANDLING_ROLE,
+            evidence_snippet=f"recruiter signature in post: {_sig_name} ({_sig_title})",
+        )
+
     # Tier 2 — first-person hiring evidence: the poster is the hiring side.
-    if _FIRST_PERSON_HIRING.search(text) and author_name:
+    # ONLY if author is a PERSON profile (not company page) AND explicit evidence.
+    if (_FIRST_PERSON_HIRING.search(text) and author_name
+            and _is_person_profile_url(author_profile_url)):
         url = url_in_text.group(0) if url_in_text else "Not Available"
         return HiringManagerResolution(
             name=author_name,
@@ -167,8 +228,9 @@ def resolve(
             evidence_snippet="poster states they are hiring",
         )
 
-    # Tier 3 — an explicit name tied to "reach out to / contact / DM".
-    named = _NAME_NEAR_CONTACT.search(text)
+    # Tier 3 — explicit named person near hiring action ("DM X to apply",
+    # "Contact X for this role", "Reach out to X regarding this position").
+    named = _NAME_NEAR_HIRING_ACTION.search(text)
     if named:
         name = named.group(1).strip()
         if len(name) >= 2 and _is_probably_person(name):
@@ -177,54 +239,37 @@ def resolve(
                 name=name,
                 linkedin_url=url,
                 is_author=_name_matches(name, author_name),
-                confidence=0.75,
+                confidence=0.8,
                 evidence=HiringManagerEvidence.EXPLICIT_HIRING_MANAGER,
                 evidence_snippet=_name_snippet(text, name),
             )
 
-    # Tier 4 — recruiter/talent persona plus author name on the hiring side.
-    if _RECRUITER_PERSONA.search(text) and author_name:
-        url = url_in_text.group(0) if url_in_text else "Not Available"
-        return HiringManagerResolution(
-            name=author_name,
-            linkedin_url=url,
-            is_author=True,
-            confidence=0.70,
-            evidence=HiringManagerEvidence.RECRUITER_HANDLING_ROLE,
-            evidence_snippet="recruiter/talent persona handling the role",
-        )
+    # Tier 4 — explicit recruiter/talent persona WITH hiring evidence.
+    # Recruiter persona alone is not sufficient; must combine with hiring action.
+    if _RECRUITER_PERSONA.search(text) and author_name and _is_person_profile_url(author_profile_url):
+        # Additional check: is there hiring action language near the recruiter mention?
+        if re.search(r"(hiring|recruiting|looking for|apply|dm|contact)", text, re.IGNORECASE):
+            url = url_in_text.group(0) if url_in_text else "Not Available"
+            return HiringManagerResolution(
+                name=author_name,
+                linkedin_url=url,
+                is_author=True,
+                confidence=0.75,
+                evidence=HiringManagerEvidence.RECRUITER_HANDLING_ROLE,
+                evidence_snippet="recruiter persona with hiring action",
+            )
 
-    # Tier 5 — founder/leadership persona plus author name on the hiring side.
-    if _LEADERSHIP_PERSONA.search(text) and author_name:
-        url = url_in_text.group(0) if url_in_text else "Not Available"
-        return HiringManagerResolution(
-            name=author_name,
-            linkedin_url=url,
-            is_author=True,
-            confidence=0.65,
-            evidence=HiringManagerEvidence.FOUNDER_LEADERSHIP,
-            evidence_snippet="founder/leadership persona on the hiring side",
-        )
+    # Tier 5 — founder/leadership persona WITH explicit first-person hiring evidence.
+    # Already covered by Tier 2, but kept for completeness if author has leadership title.
+    # Requires person profile URL.
 
-    # Tier 6 — an evidence-backed public contact hint from a Phase-7/8
-    # ContactDiscoveryProvider. Only used when the provider actually returned a
-    # verified public contact; never a fabrication. Weak tier by design: real
-    # in-post / LLM evidence still wins above it.
-    if provider_hint_name and provider_hint_name != "Unclear":
-        url = "Not Available"
-        if provider_hint_linkedin and provider_hint_linkedin != "Not Available":
-            url = _person_linkedin_url(provider_hint_linkedin)
-        return HiringManagerResolution(
-            name=provider_hint_name,
-            linkedin_url=url,
-            is_author=_name_matches(provider_hint_name, author_name),
-            confidence=0.5,
-            evidence=HiringManagerEvidence.AUTHOR_CONTEXT,
-            evidence_snippet=f"contact-discovery provider evidence for {provider_hint_name}",
-            evidence_url=provider_hint_evidence_url or "",
-        )
+    # Provider hints (Phase-7/8 ContactDiscoveryProvider) are NOT used as a fallback
+    # for hiring manager attribution without in-post evidence. They only provide
+    # verified public contact emails, not hiring manager names.
+    # This prevents inferring hiring manager from company enrichment data.
 
     # The author alone (no hiring-side evidence) is NOT a hiring manager.
+    # Company-page author is NEVER a hiring manager.
     return HiringManagerResolution(
         name="Unclear",
         linkedin_url="Not Available",

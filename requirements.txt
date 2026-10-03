@@ -11,15 +11,16 @@ lxml>=4.9.0
 # Apify (multi-source pipeline)
 apify-client>=1.7.0
 
-# Async HTTP
-aiohttp>=3.9.0
-
 # Retry/resilience
 tenacity>=8.2.0
 
 # Search (fallback)
 duckduckgo-search>=6.0.0
 httpx>=0.25.0
+# OS system CA store for httpx TLS (verifies Groq HTTPS on networks whose
+# gateway CA lives in the OS store instead of the Mozilla bundle; no-op
+# fallback to the default context where unavailable). Transport-only.
+truststore>=0.9.0
 
 # AI — google-genai (v2 SDK, replaces deprecated google-generativeai)
 google-genai>=0.5.0

@@ -1,5 +1,0 @@
-company name and roll should ne adintified 
-only job dashboard no internship
-check if the brand is Indian or not or hiring in india 
-hiring or lpa is key word (combination of key word )
-it should have give any other post other than cheif of staff, founders office , fO, use the key words,  keep the cloums of (name of the company, exact role, CTC IF GIVEN UNSTASISFIED, COLD MAIL EMIAL,HIRING MANER LINKDIN LINK, SOURCE LINK , DISCRIPTION OF INTERNSHIP (CONFIDENCE SCORE )LOCATION , TYPE ) JUST DO WITH THE FOUNDERS OFFICCE (KEEP MANJOR AS FOUNDER OFFICE AND CHEAF OF STAFF JUST THAT . (WORK EX REQUIEMENT, OR FRESHER REQUIRED ).

@@ -21,6 +21,10 @@ import re
 from typing import Optional
 
 from app.enrichment.schemas import CompanyEvidence, CompanyResolution
+from app.extraction import (
+    GENERIC_DESCRIPTOR_WORDS as _GENERIC_DESCRIPTOR_WORDS,
+    extract_join_company,
+)
 
 # ── Pronoun / role subjects that are people or generic words, never companies.
 _NON_COMPANY = re.compile(
@@ -29,8 +33,10 @@ _NON_COMPANY = re.compile(
 )
 
 # "we are hiring a Founder's Office Associate at <Company>"
+# NOTE (Phase 16): intra-name separators are [ \t], never \n — a company name
+# never spans a line break ("\s+" fused "MovieMe\n\nMovieMe" into one name).
 _AT_PATTERN = re.compile(
-    r"\bat\s+([A-Z][A-Z0-9&./\-]*(?:\s+[A-Z][A-Z0-9&.\-/]*){0,4})"
+    r"\bat\s+([A-Z][A-Z0-9&./\-]*(?:[ \t]+[A-Z][A-Z0-9&.\-/]*){0,4})"
     r"(?=[.!?,;:\n]| for |\s+in\b|\s+located|\s+based|\s+to\b|$)",
     re.IGNORECASE,
 )
@@ -45,7 +51,7 @@ _AT_PATTERN = re.compile(
 #     for" is NOT a hiring statement).
 _IS_HIRING_PATTERN = re.compile(
     r"\b(?!(?:we|who|i|it|they|you|he|she)\b)(?<!['\u2019])(?<!['\u2019]s\s)"
-    r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,3})"
+    r"([A-Z][A-Za-z0-9&\-]*(?:[ \t]+[A-Z][A-Za-z0-9&\-]*){0,3})"
     r"\s+(?:is|are)\s+(?:hiring\b|building\b|looking\s+for\b)",
     re.IGNORECASE,
 )
@@ -70,6 +76,29 @@ _HEADER_COMPANY = re.compile(
     re.IGNORECASE,
 )
 
+# Phase 30.1 — explicit company-header lines: "🏢 Company: Flipkart",
+# "Company: Flipkart", "COMPANY: Flipkart". Narrow by construction:
+#   (a) the line must START with only non-word characters (emoji/symbols/
+#       whitespace) before the literal label "company" — so "my company is…"
+#       or "our company: …" prose never matches (a word char before the label
+#       kills the match);
+#   (b) the label must be followed by an explicit field separator (':' '-');
+#   (c) the value is bounded to the SAME line — a company name never spans a
+#       line break (Phase 16 rule) — and is truncated at in-line field
+#       boundaries ('|', '#', dashes, URLs) before the shared
+#       _clean_candidate/_truncate_at_preposition/_is_generic_descriptor
+#       guards run (junk, lowercase prose, generic descriptors rejected).
+# No author/employer inference: only an explicitly labeled field is read.
+_COMPANY_HEADER = re.compile(
+    r"^[^\w\n]*company\s*[:\-\u2013]\s*([^\n]+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# In-line value boundaries for company-header values (Phase 30.1).
+_HEADER_VALUE_BOUNDARY = re.compile(
+    r"\s*\|\s*|\s*[\u2013\u2014]\s*|\s+-\s+|\s*#|\s+https?://\S*",
+)
+
 # "leading <Company>, an organisation/startup" and "help me lead <Company>, ..."
 _ORG_LEAD_RE = re.compile(
     r"\b(?:help(?:ing|s|ed)?\s+(?:me|us|them)?\s*)?lead(?:ing|er)?\s+"
@@ -78,28 +107,9 @@ _ORG_LEAD_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Generic descriptor words that, in combination, signal a descriptive (non-named)
-# phrase rather than an actual employer: e.g. "a fast-growing MedTech startup",
-# "a leading startup", "a fintech company". A real brand (e.g. "Zavity
-# Aerospace", "Maple Fashion", "BCT Ventures") contains at least one token that
-# is NOT in this set and is therefore preserved.
-_GENERIC_DESCRIPTOR_WORDS = {
-    "a", "an", "the",
-    "fast", "growing", "leading", "top", "new", "well", "known", "reputed",
-    "promising", "emerging", "scaling", "bootstrapped", "funded", "backed",
-    "financing", "seeded", "venture", "ventures", "early", "stage", "fastest",
-    "startup", "startups", "company", "companies", "brand", "brands",
-    "business", "businesses", "firm", "firms", "studio", "studios", "agency",
-    "agencies", "fintech", "medtech", "healthtech", "edtech", "insurtech",
-    "clean", "deep", "saas", "tech", "technology", "technologies", "platform",
-    "product", "products", "service", "services", "industry", "industries",
-    "digital", "organisation", "organization", "team", "entity",
-    "our", "my", "your", "their", "its", "his", "her",
-    "pvt", "private", "limited", "ltd", "llp", "llc", "inc", "corp",
-    "works", "labs", "group", "systems", "solutions",
-}
-
-
+# Generic-descriptor guard uses the shared set from app.extraction (single
+# source of truth with the classifier — both layers reject the same
+# non-employers).
 def _is_generic_descriptor(cand: str) -> bool:
     """True when a captured 'company' is actually a generic quantified/
     descriptive phrase (e.g. 'a fast-growing MedTech', 'a leading startup',
@@ -118,6 +128,12 @@ def _clean_candidate(raw: str) -> str:
         return ""
     if s.lower() in {"unclear", "n/a", "na", "none", "unknown", "hiring", "jobs"}:
         return ""
+    # Phase 16: an all-lowercase capture is prose or an email fragment, never
+    # an employer brand (baseline: "mail me at sonia.malhotra@…" captured
+    # company "sonia"). A real brand carries at least one capitalized token.
+    # (Lowercase-first brands like "devx" degrade to Unclear — fail-closed.)
+    if not any(w and (w[0].isupper() or w[0].isdigit()) for w in s.split()):
+        return ""
     return s
 
 
@@ -125,6 +141,20 @@ def _explicit_in_post(text: str) -> Optional[str]:
     """Evidence tier 1+2: an explicit company name in the post text."""
     if not text:
         return None
+
+    # Phase 16: "Join <Company>" (employer self-identification) wins over
+    # "at <Name>" (which also matches clients: baseline Enqurious resolved to
+    # "Fractal", a client named in "teams at Fractal, Tredence, …", while the
+    # post opens "Join Enqurious, …").
+    joined = extract_join_company(text)
+    if joined:
+        return joined
+
+    # Phase 30.1: an explicitly labeled company header ("🏢 Company: Flipkart")
+    # outranks the prose patterns below — the label names the field itself.
+    headered = _company_header(text)
+    if headered:
+        return headered
 
     for pat in (_AT_PATTERN, _IS_HIRING_PATTERN, _AT_COMPANY, _HEADER_COMPANY, _ORG_LEAD_RE):
         m = pat.search(text)
@@ -137,6 +167,27 @@ def _explicit_in_post(text: str) -> Optional[str]:
         # Reject generic quantified / descriptive phrases ("a fast-growing
         # MedTech startup", "a leading company") that are captured as if they
         # were an employer name. Only an actual named employer is surfaced.
+        if cand and len(cand) >= 2 and not _is_generic_descriptor(cand):
+            return cand
+    return None
+
+
+def _company_header(text: str) -> Optional[str]:
+    """Phase 30.1: company from an explicitly labeled header line, else None.
+
+    Reads ONLY lines whose label literally is "Company" (optionally preceded by
+    emoji/symbols) followed by ':' or '-'. Values are bounded to the line,
+    truncated at in-line field boundaries, and must pass the same shared
+    guards as every other candidate (clean, capitalized, non-generic).
+    Fail-closed: anything ambiguous yields None, never a guess.
+    """
+    if not text:
+        return None
+    for m in _COMPANY_HEADER.finditer(text):
+        cand = _HEADER_VALUE_BOUNDARY.split(m.group(1), maxsplit=1)[0]
+        cand = cand.strip().strip("*_~`").strip()
+        cand = _clean_candidate(cand)
+        cand = _truncate_at_preposition(cand)
         if cand and len(cand) >= 2 and not _is_generic_descriptor(cand):
             return cand
     return None

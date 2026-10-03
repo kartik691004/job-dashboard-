@@ -10,6 +10,8 @@ worksheet_name = os.getenv("GOOGLE_SHEET_WORKSHEET", "LinkedIn Hiring Leads")
 
 print("--- Spreadsheet Verification ---")
 try:
+    from app.tls_trust import ensure_google_trust
+    ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
     client = gspread.service_account(filename=credentials_path)
     sheet = client.open_by_key(sheet_id)
     print("Spreadsheet: PASS")

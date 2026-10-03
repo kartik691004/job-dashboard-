@@ -115,6 +115,8 @@ class OutreachRunner:
         if self._worksheet is None:
             if not self.sheet_id:
                 raise RuntimeError("No SHEET_ID configured; refusing to guess.")
+            from app.tls_trust import ensure_google_trust
+            ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
             client = _with_retry(lambda: gspread.service_account(filename=self.credentials_path))
             sheet = _with_retry(lambda: client.open_by_key(self.sheet_id))
             self._worksheet = _with_retry(lambda: sheet.worksheet(self.worksheet_name))

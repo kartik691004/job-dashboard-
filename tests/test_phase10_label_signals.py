@@ -169,8 +169,13 @@ def test_multi_employer_listing_with_labels_still_rejects():
 # ── 16-19: no gate weakened (internship / job-seeker / non-India / aggregator) ─
 
 def test_internship_still_rejects():
+    # Phase 15E: "Founder's Office Intern" in context of a target role is
+    # no longer deterministically rejected. It passes the deterministic gate
+    # and proceeds to later gates.
     post = make_post("Role: Founder's Office Intern. Bangalore. 3 months.")
-    assert classifier.classify(post).is_valid is False
+    result = classifier.classify(post)
+    assert result.is_valid is True
+    assert result.major_category == "Founder's Office"
 
 
 def test_job_seeker_still_rejects():

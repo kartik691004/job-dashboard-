@@ -61,7 +61,7 @@ PHASE 4 DRY_RUN — COMPLETED 2026-08-26 (exactly one clean run, DRY_RUN=true, l
 - Result: scraped 128, unique 76, deterministic candidates 15, Groq calls 15, **ACCEPT 3 / REVIEW 3 / REJECT 9**, current-run dups 52, sheet dups 0, new_rows 6, errors 0. No production write.
 - 3 ACCEPTs (all Status=New, Full-time, India): Founder's Office Associate (Jaipur, 0.97, email Hr.buddinggroup@gmail.com); Founder's Office Executive (Zestify_365, Ahmedabad, 0–2 yrs, 0.98); Founder's Office Associate (Protip, New Delhi, 1–2 yrs, 0.99).
 - REJECTs correctly caught: Executive Assistant (not target role), job-aggregator roundups, success narratives, "not a current job opening". REVIEWs = confidence<0.90 or employment_type Unclear (held, never auto-accepted). Gate logic confirmed correct and conservative.
-- Known: GEMINI_API_KEY in .env is INVALID (24 chars, not an `AIza…` key) — Gemini path is built but unusable; Groq is the active path.
+- Known: GEMINI_API_KEY in .env is INVALID (24 chars, not an `[redacted] key) — Gemini path is built but unusable; Groq is the active path.
 
 Next: user reviews lead quality. Only after approval, flip DRY_RUN=false for a production write. No production write has occurred.
 

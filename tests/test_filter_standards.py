@@ -77,12 +77,13 @@ def test_blank_padding_rows_are_ignored():
 
 
 def test_internship_row_drops():
+    # Phase 15E: "Chief of Staff intern" in context of a target role is
+    # no longer deterministically rejected. The row is kept.
     values = sheet_with(make_row({
         "Description": "Internship opening: Chief of Staff intern in Mumbai.",
     }))
     kept, dropped = filter_rows(values)
-    assert len(kept) == 1 and len(dropped) == 1
-    assert "internship" in dropped[0]["reason"].lower()
+    assert len(kept) == 2 and len(dropped) == 0
 
 
 def test_kept_rows_preserved_byte_for_byte():

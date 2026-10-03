@@ -465,7 +465,8 @@ class Enricher:
         self.llm_provider = llm_provider
         self.contact_provider = contact_provider
 
-    def enrich_from_classified(self, classified, llm_verdict=None) -> S.EnrichedLead:
+    def enrich_from_classified(self, classified, llm_verdict=None, job_card_company: str = "Unclear", 
+                           job_card_employment_type: str = "Unclear", job_card_experience: str = "Unclear") -> S.EnrichedLead:
         """Convenience wrapper: enrich a ClassifiedPost (plus optional verified
         LLM verdict fields) in one call. Never raises; a failure degrades to a
         REVIEW-flagged, honestly-empty EnrichedLead."""
@@ -675,19 +676,21 @@ class Enricher:
         ctc_res = resolve_ctc(text, classified_ctc, llm_ctc, llm_currency)
 
         # ── Hiring manager + LinkedIn (spec §7/§8) ──────────────────────────
-        # A provider-verified public hiring contact is honoured only as a
-        # low-confidence secondary hint (still evidence-backed, never invented);
-        # explicit in-post / LLM evidence always wins.
+        # Only the LLM's attributed hiring manager (with explicit evidence) is
+        # passed as Tier 1. The deterministic classifier's hiring manager is NOT
+        # passed through — the contact resolver re-evaluates evidence tiers
+        # independently to avoid false positives from author/company inference.
+        # Provider hints are NOT used for hiring manager attribution.
         contact_res = resolve_contact(
             post_text=text,
             author_name=author_name,
             author_profile_url=author_profile_url,
-            llm_hiring_manager_name=llm_hiring_manager_name or classified_hiring_manager_name,
-            llm_hiring_manager_linkedin=llm_hiring_manager_linkedin or classified_hiring_manager_linkedin,
+            llm_hiring_manager_name=llm_hiring_manager_name,
+            llm_hiring_manager_linkedin=llm_hiring_manager_linkedin,
             llm_application_method=llm_application_method,
-            provider_hint_name=provider_contact_name,
-            provider_hint_linkedin=provider_contact_linkedin,
-            provider_hint_evidence_url=provider_contact_evidence_url,
+            provider_hint_name=None,  # Provider hints only for email, not hiring manager
+            provider_hint_linkedin="Not Available",
+            provider_hint_evidence_url="",
         )
 
         # ── Email (spec §9) ──────────────────────────────────────────────────
@@ -705,12 +708,27 @@ class Enricher:
         summary = llm_description.strip() if llm_description and llm_description != description else ""
         summary = summary[:600] if summary else ""
 
+        # ── Phase 16: application links + key points (verbatim post literals,
+        # recomputed here so enrichment carries the same deterministic values
+        # as the sheet row even when called without a classified object) ──
+        from app.extraction import (
+            build_key_points as _build_key_points,
+            extract_apply_link as _extract_apply_link,
+            extract_google_form_url as _extract_google_form_url,
+        )
+        _form_url = _extract_google_form_url(text)
+        _apply_link = _extract_apply_link(text, _form_url)
+        _key_points = _build_key_points(text, company_res.company)
+
         # Build the enriched lead.
         enriched = S.EnrichedLead(
             source_link=source_link,
             post_date=post_date,
             post_description=description,
             llm_summary=summary,
+            key_points=_key_points,
+            apply_google_form=_form_url,
+            apply_link=_apply_link,
             company_name=company_res.company,
             company_confidence=company_res.company_confidence,
             company_evidence=company_res.company_evidence.value,
@@ -753,7 +771,10 @@ class Enricher:
         )
 
         if summary:
-            enriched.evidence_snippets.append(("llm_summary", summary[:120]))
+            # Phase 16 fix (baseline §9.1 cosmetic bug): evidence_snippets is
+            # List[str] — the old tuple ("llm_summary", …) tripped Pydantic
+            # serializer warnings on every ACCEPT. A plain string now.
+            enriched.evidence_snippets.append(f"llm_summary: {summary[:120]}")
 
         enriched.enrichment_confidence = _enrichment_confidence(enriched)
         enriched.data_quality_score = _data_quality_score(enriched)

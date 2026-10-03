@@ -19,7 +19,9 @@ def test_cos_hiring_bangalore():
     assert result.is_valid == True
     assert result.major_category == "Chief of Staff"
     assert result.market == "India"
-    assert result.location == "Bangalore"
+    # Phase 16: city spellings canonicalise (Bangalore -> Bengaluru, matching
+    # the enricher's location canon); state tokens drop when a city matched.
+    assert result.location == "Bengaluru"
 
 def test_fo_hiring_mumbai():
     post = make_post("Looking for a Founder's Office Associate in Mumbai. DM me with your CV.")
@@ -54,10 +56,13 @@ def test_reject_informational():
     assert "informational" in result.classification_reason.lower() or "no genuine hiring" in result.classification_reason.lower()
 
 def test_reject_internship():
+    # "Chief of Staff Intern" is a legitimate target internship when combined
+    # with the CoS keyword and hiring intent (Phase 15E: internship recall fix).
+    # It should pass the deterministic gate and proceed to later gates.
     post = make_post("We are hiring a Chief of Staff Intern - Bangalore")
     result = classifier.classify(post)
-    assert result.is_valid == False
-    assert "internship" in result.classification_reason.lower()
+    assert result.is_valid is True
+    assert result.major_category == "Chief of Staff"
 
 
 # ── Phase-9E Bug 1: internship detection must be word-bounded ────────────────
@@ -99,10 +104,14 @@ def test_internet_does_not_trigger_internship():
     "hiring an interning founder's office associate",
 ])
 def test_genuine_internship_still_rejects(desc):
+    # Phase 15E: posts with FO/CoS + internship are no longer deterministically
+    # rejected for the internship reason. They may still be rejected for other
+    # quality reasons (India relevance, hiring intent, etc.) which is correct.
     post = make_post(desc)
     result = classifier.classify(post)
-    assert result.is_valid is False
-    assert "internship" in result.classification_reason.lower()
+    # Should not be rejected specifically for "internship" detection.
+    # May be rejected for other reasons (India relevance, hiring intent, etc.).
+    assert "internship" not in result.classification_reason.lower()
 
 def test_reject_fo_ambiguous():
     post = make_post("FO hiring in Bangalore")

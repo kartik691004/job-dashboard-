@@ -94,7 +94,7 @@ class ExactRoleResolution(BaseModel):
     """The ACTUAL advertised role title (spec §2)."""
 
     exact_role: str = "Unclear"
-    major_category: str = "Unclear"   # remains Founder's Office | Chief of Staff | ...
+    major_category: str = "Unclear"   # Founder's Office | Chief of Staff | Data Analyst | Data Scientist | ...
     role_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     role_evidence_snippet: str = ""
 
@@ -169,6 +169,10 @@ class EnrichedLead(BaseModel):
     post_date: str = ""
     post_description: str = ""                             # spec §11: ORIGINAL post text, never the LLM summary
     llm_summary: str = ""                                  # spec §11: a SEPARATE summary field
+    # ── Phase 16: application + standardized points (verbatim post literals) ──
+    key_points: str = ""               # max 4 extractive lines, never invented
+    apply_google_form: str = ""        # exact Google Form URL ("" when none)
+    apply_link: str = ""               # best application URL ("" when none)
 
     # ── Company (spec §1) ───────────────────────────────────────────────────
     company_name: str = "Unclear"
@@ -179,7 +183,7 @@ class EnrichedLead(BaseModel):
     company_evidence_url: str = ""                         # Phase 8: official-site URL backing it
 
     # ── Role (spec §2) ──────────────────────────────────────────────────────
-    major_category: str = "Unclear"                        # Founder's Office | Chief of Staff
+    major_category: str = "Unclear"                        # Founder's Office | Chief of Staff | Data Analyst | Data Scientist
     exact_role: str = "Unclear"                            # the ACTUAL advertised title
     role_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     role_evidence_snippet: str = ""

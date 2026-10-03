@@ -91,6 +91,8 @@ def main() -> None:
                         help="Backup + rewrite the tab (still refused while DRY_RUN=true)")
     args = parser.parse_args()
 
+    from app.tls_trust import ensure_google_trust
+    ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
     gc = gspread.service_account(filename=GOOGLE_SHEETS_CREDENTIALS)
     sheet = gc.open_by_key(GOOGLE_SHEETS_ID)
     ws = sheet.worksheet(GOOGLE_SHEET_WORKSHEET)

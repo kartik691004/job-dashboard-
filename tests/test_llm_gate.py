@@ -258,8 +258,11 @@ def test_31_contract_is_never_auto_accepted():
     assert any("Contract" in r for r in gate.reasons)
 
 def test_32_unclear_employment_held_for_review():
+    # Phase 15E: employment_type=Unclear no longer automatically blocks ACCEPT
+    # when all essential quality conditions pass (confidence >= 0.75, India relevance,
+    # genuine hiring, target role, not aggregator, etc.).
     gate = run_gate(make_payload(employment_type="Unclear", confidence=0.96))
-    assert gate.decision == "REVIEW" and gate.status == "Review"
+    assert gate.decision == "ACCEPT" and gate.status == "New"
 
 def test_33_confidence_bands():
     assert run_gate(make_payload(confidence=0.85)).decision == "REVIEW"

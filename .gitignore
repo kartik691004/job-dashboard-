@@ -27,11 +27,14 @@ logs/
 excel/
 *.xlsx
 
-# IDE
+# IDE & agent tooling
 .vscode/
 .idea/
 *.swp
 *.swo
+.claude/
+.kilo/
+.freebuff/
 
 # OS
 Thumbs.db
@@ -39,6 +42,9 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Backup files
+*.bak
 
 # Test coverage
 htmlcov/

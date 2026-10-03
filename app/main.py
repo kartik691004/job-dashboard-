@@ -48,6 +48,8 @@ def get_leads(limit: int = 200):
     if limit <= 0:
         raise HTTPException(status_code=422, detail="limit must be a positive integer")
     try:
+        from app.tls_trust import ensure_google_trust
+        ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
         gc = gspread.service_account(filename=GOOGLE_SHEETS_CREDENTIALS)
         worksheet = gc.open_by_key(GOOGLE_SHEETS_ID).worksheet(GOOGLE_SHEET_WORKSHEET)
         if worksheet.id == 0 or worksheet.index == 0:

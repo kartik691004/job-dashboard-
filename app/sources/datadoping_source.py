@@ -93,6 +93,27 @@ def _location_from_job_card(item: Dict[str, Any]) -> str:
     return (_job_card(item).get("description") or "").strip()
 
 
+def _employment_type_from_job_card(item: Dict[str, Any]) -> str:
+    """Pull the employment type from an attached job card if available."""
+    card = _job_card(item)
+    # Check common fields for employment type
+    for field in ("employment_type", "job_type", "work_type", "type"):
+        val = (card.get(field) or "").strip()
+        if val:
+            return val
+    return "Unclear"
+
+
+def _experience_from_job_card(item: Dict[str, Any]) -> str:
+    """Pull the experience requirement from an attached job card if available."""
+    card = _job_card(item)
+    for field in ("experience", "years_of_experience", "experience_required", "seniority"):
+        val = (card.get(field) or "").strip()
+        if val:
+            return val
+    return "Unclear"
+
+
 def activity_id(item_or_url: Any) -> str:
     """Stable LinkedIn activity id, the most reliable dedup key for a post.
 
@@ -136,6 +157,9 @@ class DataDopingSource(ScraperSource):
             author_profile_url=_strip_query(author.get("profile_url") or ""),
             company=_company_from_job_card(item),
             job_card_location=_location_from_job_card(item),
+            job_card_company=_company_from_job_card(item),
+            job_card_employment_type=_employment_type_from_job_card(item),
+            job_card_experience=_experience_from_job_card(item),
         )
 
     def _collect(self, run_input: Dict[str, Any]) -> List[RawPost]:

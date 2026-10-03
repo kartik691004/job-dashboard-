@@ -17,17 +17,12 @@ import concurrent.futures
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-# Fix SSL for corporate firewalls
-ssl._create_default_https_context = ssl._create_unverified_context
-warnings.filterwarnings("ignore", message="Unverified HTTPS request")
-
-# Patch requests to disable SSL verification globally
+# Phase 28.4: the previous global SSL-verification bypass here
+# (unverified-context override + forced insecure requests monkeypatch)
+# has been REMOVED. TLS verification is always ON; Google entry points in
+# this file use the shared app.tls_trust.ensure_google_trust() OS-store
+# hook (verification-preserving) instead of disabling verification.
 import requests
-_orig_request = requests.Session.request
-def _patched_request(*args, **kwargs):
-    kwargs['verify'] = False
-    return _orig_request(*args, **kwargs)
-requests.Session.request = _patched_request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -758,13 +753,30 @@ def find_hr_contact(company: str) -> Dict:
 def push_to_google_sheets(
     startups_clean, founders_list, contacts_list, funding_rounds, linkedin_list, run_log
 ):
-    """Push all data to the configured Google Sheets spreadsheet."""
+    """Push all data to the configured Google Sheets spreadsheet.
+
+    ── Phase 22F QUARANTINE ──
+    LEGACY pipeline writer. NOT the live LinkedIn Hiring Leads path (which
+    writes only via app/sheets_writer.py under DRY_RUN control). Refuses to
+    run unless ALLOW_LEGACY_SHEETS_WRITE=1 is explicitly set.
+    """
+    import os as _os
+    if _os.getenv("ALLOW_LEGACY_SHEETS_WRITE", "").lower() not in ("1", "true", "yes"):
+        log.error(
+            "Refusing legacy push_to_google_sheets: set "
+            "ALLOW_LEGACY_SHEETS_WRITE=1 to explicitly opt in. "
+            "This writer has no DRY_RUN gate and is NOT the production writer."
+        )
+        return
     try:
         import gspread
         from google.oauth2.service_account import Credentials
     except ImportError:
         log.error("gspread/google-auth not installed. Skipping Sheets push.")
         return
+
+    from app.tls_trust import ensure_google_trust
+    ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
 
     CREDENTIALS_PATH = "credentials.json"
     SPREADSHEET_ID = "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis"

@@ -152,7 +152,7 @@ def test_groq_sends_json_schema_structured_outputs(monkeypatch):
     from app.llm.schemas import LeadVerdict
     seen = {}
 
-    def fake_post(url, json=None, headers=None, timeout=None):
+    def fake_post(url, json=None, headers=None, timeout=None, verify=None):
         seen["json"] = json
         return FakeResponse(200, {"choices": [{"message": {
             "content": '{"decision": "ACCEPT", "confidence": 0.95}'}}]})

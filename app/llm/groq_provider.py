@@ -18,6 +18,7 @@ temperature window, with reasoning counted against max_tokens.
 Security: the API key never appears in exceptions, logs, or repr().
 """
 import json
+import ssl
 import time
 from typing import Any, Dict
 
@@ -35,6 +36,28 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 RATE_LIMIT_MAX_ATTEMPTS = 4
 RATE_LIMIT_BACKOFF_S = 1.0
 TRANSIENT_RETRY_DELAY_S = 1.0
+
+_SSL_CONTEXT = None
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """TLS trust for the Groq HTTPS transport (transport-only setting).
+
+    Verification is ALWAYS on — this only selects *which* trust anchors to
+    verify against. The default OpenSSL bundle has no usable CA file on some
+    Windows installs, and networks that TLS-inspect api.groq.com anchor their
+    gateway CA in the OS system store instead of Mozilla's bundle. `truststore`
+    verifies against the OS store (and safely falls back to the default context
+    on platforms/packagings without it, preserving previous behaviour).
+    """
+    global _SSL_CONTEXT
+    if _SSL_CONTEXT is None:
+        try:
+            import truststore
+            _SSL_CONTEXT = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        except ImportError:
+            _SSL_CONTEXT = ssl.create_default_context()
+    return _SSL_CONTEXT
 
 
 class GroqProvider:
@@ -106,7 +129,8 @@ class GroqProvider:
         while True:
             try:
                 resp = httpx.post(GROQ_URL, json=payload, headers=headers,
-                                  timeout=self.timeout_s)
+                                  timeout=self.timeout_s,
+                                  verify=_ssl_context())
                 if resp.status_code == 429:
                     rate_attempts += 1
                     if rate_attempts > RATE_LIMIT_MAX_ATTEMPTS:

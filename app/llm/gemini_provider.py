@@ -10,7 +10,7 @@ so it cannot leak into URLs or access logs.
 """
 import json
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import httpx
 
@@ -24,15 +24,41 @@ RATE_LIMIT_BACKOFF_S = 1.0
 TRANSIENT_RETRY_DELAY_S = 1.0
 
 
+def collect_gemini_keys(*values: Any) -> List[str]:
+    """Collect ordered unique Gemini API keys from str or list values.
+
+    Pure helper: accepts individual key strings and/or comma-separated /
+    list values, strips whitespace, drops empties, dedupes preserving
+    first-seen order. Never logs or raises on key material.
+    """
+    keys: List[str] = []
+    for value in values:
+        if not value:
+            continue
+        items = value if isinstance(value, (list, tuple)) else str(value).split(",")
+        for item in items:
+            key = item.strip() if isinstance(item, str) else ""
+            if key and key not in keys:
+                keys.append(key)
+    return keys
+
+
 class GeminiProvider:
-    def __init__(self, api_key: str, model: str, timeout_s: float = 30.0,
-                 max_retries: int = 1):
-        if not api_key:
+    def __init__(self, api_key: Union[str, List[str]], model: str,
+                 timeout_s: float = 30.0, max_retries: int = 1):
+        keys = collect_gemini_keys(api_key)
+        if not keys:
             raise LLMError("Gemini API key is not configured")
-        self._api_key = api_key
+        self._api_keys = keys
+        self._api_key = keys[0]  # primary key (backward-compatible accessor)
         self.model = model
         self.timeout_s = timeout_s
         self.max_retries = max(0, max_retries)
+
+    @property
+    def api_key_count(self) -> int:
+        """Number of configured Gemini keys available for rotation."""
+        return len(self._api_keys)
 
     @staticmethod
     def _backoff(resp, attempt: int) -> None:
@@ -49,6 +75,33 @@ class GeminiProvider:
         time.sleep(min(delay, 30.0))
 
     def complete_json(self, system: str, user: str) -> Dict[str, Any]:
+        """Structured call with in-provider key rotation.
+
+        Keys are tried in configured order. A key whose retry budget is
+        exhausted by 429s, or which is rejected with 401/403, yields to the
+        next key (bounded: one pass over the key list, existing per-key
+        budgets unchanged). Any other failure raises immediately. With a
+        single key the behaviour is byte-identical to the previous version.
+        Key material never appears in errors or logs.
+        """
+        last_error: Exception = LLMError("Gemini call did not run")
+        for index, key in enumerate(self._api_keys):
+            try:
+                return self._complete_with_key(key, system, user)
+            except LLMError as e:
+                last_error = e
+                message = str(e)
+                rotatable = ("429" in message
+                             or "rate limit" in message.lower()
+                             or "HTTP 401" in message
+                             or "HTTP 403" in message)
+                if rotatable and index + 1 < len(self._api_keys):
+                    continue
+                raise
+        raise last_error
+
+    def _complete_with_key(self, api_key: str, system: str,
+                           user: str) -> Dict[str, Any]:
         url = GEMINI_URL.format(model=self.model)
         payload = {
             "systemInstruction": {"parts": [{"text": system}]},
@@ -59,7 +112,7 @@ class GeminiProvider:
                 "responseMimeType": "application/json",
             },
         }
-        headers = {"x-goog-api-key": self._api_key,
+        headers = {"x-goog-api-key": api_key,
                    "Content-Type": "application/json"}
 
         last_error: Exception = LLMError("Gemini call did not run")
@@ -85,8 +138,8 @@ class GeminiProvider:
                         reason = str(err.get("message", "") or err.get("status", ""))
                     except Exception:
                         reason = ""
-                    # Guard: never echo the API key back in the error text.
-                    if self._api_key in reason:
+                    # Guard: never echo any API key back in the error text.
+                    if any(k and k in reason for k in self._api_keys):
                         reason = "<redacted>"
                     raise LLMError(f"Gemini HTTP {resp.status_code} {reason}")
                 body = resp.json()

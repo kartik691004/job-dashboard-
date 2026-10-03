@@ -31,6 +31,8 @@ print(f"Using sheet ID:    {sheet_id}")
 print(f"Using worksheet:   {worksheet_name}")
 
 try:
+    from app.tls_trust import ensure_google_trust
+    ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
     client = gspread.service_account(filename=credentials_path)
     print("Google authentication: PASS")
 

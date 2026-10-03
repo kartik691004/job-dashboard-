@@ -95,6 +95,13 @@ class GoogleSheetsOutreachExporter:
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",
         ]
+        try:
+            from app.tls_trust import ensure_google_trust
+            ensure_google_trust()  # Phase 28.4: OS-store trust before Google TLS
+        except ImportError:
+            # App package not importable (non-root cwd): keep the pre-28.4
+            # behaviour — default verification stays ON and fails closed.
+            pass
         creds = Credentials.from_service_account_file(self.credentials_path, scopes=scopes)
         self._client = gspread.authorize(creds)
         return self._client
@@ -126,6 +133,19 @@ class GoogleSheetsOutreachExporter:
         jobs_data: List[Dict[str, Any]] = None,
         run_log: Optional[Dict[str, Any]] = None,
     ) -> str:
+        # ── Phase 22F QUARANTINE ──
+        # LEGACY exporter. NOT the live LinkedIn Hiring Leads path (which
+        # writes only via app/sheets_writer.py under DRY_RUN control).
+        # Refuses to write unless ALLOW_LEGACY_SHEETS_WRITE=1 is set.
+        if os.getenv("ALLOW_LEGACY_SHEETS_WRITE", "").lower() not in (
+            "1", "true", "yes",
+        ):
+            raise PermissionError(
+                "Refusing legacy export_workbook: set "
+                "ALLOW_LEGACY_SHEETS_WRITE=1 to explicitly opt in. "
+                "This exporter has no DRY_RUN gate and is NOT the "
+                "production writer."
+            )
         jobs_data = jobs_data or []
         spreadsheet = self._get_or_create_spreadsheet()
         id_map = {

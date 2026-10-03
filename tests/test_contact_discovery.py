@@ -136,11 +136,17 @@ def test_found_provider_feeds_verified_email():
 
 
 def test_found_provider_feeds_public_contact_hint():
+    # Provider hints should provide verified emails but NOT hiring managers
+    # without in-post hiring-side evidence (P2-1/P2-2 fix).
     e = Enricher(contact_provider=FakeFoundProvider())
     res = e.enrich("We are hiring a Founder's Office Associate at Acme in Mumbai.",
                    job_metadata_company="Acme")
-    assert res.hiring_manager_name == "Priya Sharma"
-    assert res.hiring_manager_linkedin == "https://linkedin.com/in/priya-sharma"
+    # Provider email should be used
+    assert res.cold_email == "careers@acme.com"
+    assert res.email_status == EmailStatus.FOUND.value
+    # But provider contact should NOT become hiring manager without in-post evidence
+    assert res.hiring_manager_name == "Unclear"
+    assert res.hiring_manager_linkedin in ("Not Available", "")
 
 
 # ── 4. No fabrication: empty / failing / hostile providers ──────────────────
