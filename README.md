@@ -89,18 +89,15 @@ app/
   sheets_writer.py  guarded Google Sheets writes, EXPECTED_HEADERS schema
   geo.py            India-market geography helpers
   sources/          Apify integrations (datadoping_source.py is live)
-tests/              pytest suite (132 passed, 1 skipped)
-tools/              one-off migration utilities
-data/               run artifacts, backups, analysis dumps
+tests/              pytest suite
+tools/              sheets migration / audit utilities
+data/               run artifacts, backups, analysis dumps (untracked)
 docker/             Dockerfile + docker-compose.yml
-n8n/                legacy workflow export
 index.html          control hub wired to /health, /leads, POST /run
 run_daily.py/.bat   scheduler entry point
 run_cold_outreach.py manual cold-mail entry point (--live to send)
 verify_sheets.py    read-only sheets preflight
 ```
-
-The older `src/` layer (startup-discovery scrapers, Excel/GSheets exporters) is legacy and inert in the live pipeline; its Google exporter is guarded against touching production spreadsheets.
 
 ## Development
 
@@ -111,3 +108,7 @@ python -m pytest              # test suite
 python verify_sheets.py       # read-only preflight
 python app/main.py            # start API
 ```
+
+The legacy `src/` pipeline, n8n export, and one-off phase/debug scripts have
+been removed; the live pipeline is entirely under `app/` with its entry points
+listed above.

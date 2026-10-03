@@ -3,37 +3,19 @@ fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
 pydantic>=2.0.0
 
-# Web scraping
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-
-# Apify (multi-source pipeline)
+# Apify scraping (datadoping/linkedin-posts-search-scraper)
 apify-client>=1.7.0
 
-# Retry/resilience
-tenacity>=8.2.0
-
-# Search (fallback)
-duckduckgo-search>=6.0.0
+# HTTP client (Groq/Gemini LLM providers, contact discovery)
 httpx>=0.25.0
 # OS system CA store for httpx TLS (verifies Groq HTTPS on networks whose
 # gateway CA lives in the OS store instead of the Mozilla bundle; no-op
 # fallback to the default context where unavailable). Transport-only.
 truststore>=0.9.0
 
-# AI — google-genai (v2 SDK, replaces deprecated google-generativeai)
-google-genai>=0.5.0
-
-# Data & Excel
-openpyxl>=3.1.0
-
 # Google Sheets
 gspread>=6.1.0
 google-auth>=2.35.0
-
-# Scheduler
-APScheduler>=3.10.0
 
 # Utilities
 python-dotenv>=1.0.0

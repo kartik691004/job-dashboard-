@@ -459,70 +459,6 @@ def test_enrichment_review_does_not_veto_or_promote(orch):
     assert [r[18] for r in fake.worksheet.appended] == ["New"]
 
 
-# ── 22F: legacy writer quarantine ────────────────────────────────────────────
-
-def test_update_gs_refuses_without_opt_in(monkeypatch):
-    monkeypatch.delenv("ALLOW_LEGACY_SHEETS_WRITE", raising=False)
-    import update_gs
-    with pytest.raises(RuntimeError):
-        update_gs.main()
-
-
-def test_update_gs_opt_in_path_uses_client(monkeypatch):
-    monkeypatch.setenv("ALLOW_LEGACY_SHEETS_WRITE", "1")
-    import update_gs
-    called = {"n": 0}
-
-    class DummySheet:
-        def append_row(self, row):
-            called["n"] += 1
-
-    class DummyBook:
-        def worksheet(self, name):
-            return DummySheet()
-
-    class DummyClient:
-        def open_by_key(self, key):
-            return DummyBook()
-
-    monkeypatch.setattr(update_gs, "get_client", lambda: DummyClient())
-    update_gs.main()
-    assert called["n"] == 2
-
-
-def test_legacy_exporter_refuses_without_opt_in(monkeypatch):
-    monkeypatch.delenv("ALLOW_LEGACY_SHEETS_WRITE", raising=False)
-    from src.exporters.google_sheets_exporter import GoogleSheetsOutreachExporter
-    ex = GoogleSheetsOutreachExporter.__new__(GoogleSheetsOutreachExporter)
-    with pytest.raises(PermissionError):
-        ex.export_workbook([], [], [])
-
-
-def test_legacy_exporter_still_forbids_prod_id_with_opt_in(monkeypatch):
-    monkeypatch.setenv("ALLOW_LEGACY_SHEETS_WRITE", "1")
-    from src.exporters.google_sheets_exporter import GoogleSheetsOutreachExporter
-    ex = GoogleSheetsOutreachExporter.__new__(GoogleSheetsOutreachExporter)
-    ex.credentials_path = "credentials.json"
-    ex.spreadsheet_id = "15fuzMFlSj2zVaseYlMYdfRaFkmCeUoCyrvKxV6mxLis"
-    ex._client = None
-    with pytest.raises(PermissionError):
-        ex.export_workbook([], [], [])
-
-
-def test_run_full_pipeline_legacy_push_refuses_without_opt_in(monkeypatch, caplog):
-    monkeypatch.delenv("ALLOW_LEGACY_SHEETS_WRITE", raising=False)
-    import run_full_pipeline
-    assert "ALLOW_LEGACY_SHEETS_WRITE" in inspect_source_guard(
-        run_full_pipeline.push_to_google_sheets)
-    run_full_pipeline.push_to_google_sheets([], [], [], [], [], {})
-    # Returns early; must not raise and must not touch network (no creds read).
-
-
-def inspect_source_guard(fn):
-    import inspect
-    return inspect.getsource(fn)
-
-
 # ── 22D: no blind retry at orchestrator level ────────────────────────────────
 
 def test_failed_write_is_not_retried_by_orchestrator(orch):
@@ -540,7 +476,6 @@ def test_scrubbed_files_contain_no_credential_patterns():
     pats = [re.compile(r"gsk_\S+"), re.compile(r"AIza\S+"),
             re.compile(r"AQ\.\S+"), re.compile(r"\bsk-\S+")]
     files = [
-        "PROJECT_STATE_REPORT.md",
         "data/validation/phase13b_extraction_rootcause/phase14a_provider_fix_validation.md",
         "data/validation/phase15_production_hardening/phase15e_implementation_validation.md",
         "data/validation/phase15_production_hardening/phase15e_preflight_audit.md",
@@ -552,13 +487,6 @@ def test_scrubbed_files_contain_no_credential_patterns():
         text = (repo / rel).read_text(encoding="utf-8", errors="replace")
         for p in pats:
             assert not p.search(text), f"credential-like pattern remains in {rel}"
-
-
-def test_smoke_test_logs_no_key_material():
-    text = (Path(__file__).resolve().parent.parent / "smoke_test_groq.py").read_text(
-        encoding="utf-8")
-    assert "GROQ_API_KEY[:10]" not in text and "GROQ_API_KEY[-4:]" not in text
-    assert "Key configured:" in text
 
 
 def test_env_and_credentials_still_ignored():

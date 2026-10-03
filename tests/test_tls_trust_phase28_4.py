@@ -32,10 +32,6 @@ HOOKED_FLOWS = [
     ("app/main.py", "get_leads"),
     ("app/outreach.py", "_ensure_worksheet"),
     ("verify_sheets.py", None),           # module-level script
-    ("verify_sheets2.py", None),          # module-level script
-    ("update_gs.py", "get_client"),
-    ("run_full_pipeline.py", "push_to_google_sheets"),
-    ("src/exporters/google_sheets_exporter.py", "_get_client"),
     ("tools/filter_sheet_by_standards.py", "main"),
     ("tools/migrate_to_txt_schema.py", "main"),
 ]
@@ -180,9 +176,6 @@ def test_no_verification_bypass_in_trust_mechanism():
     hook_sources = [
         ROOT / "app/sheets_writer.py", ROOT / "app/main.py",
         ROOT / "app/outreach.py", ROOT / "verify_sheets.py",
-        ROOT / "verify_sheets2.py", ROOT / "update_gs.py",
-        ROOT / "run_full_pipeline.py",
-        ROOT / "src/exporters/google_sheets_exporter.py",
         ROOT / "tools/filter_sheet_by_standards.py",
         ROOT / "tools/migrate_to_txt_schema.py",
     ]
@@ -241,9 +234,6 @@ def test_all_hooks_use_the_shared_mechanism():
     hook_sources = [
         ROOT / "app/sheets_writer.py", ROOT / "app/main.py",
         ROOT / "app/outreach.py", ROOT / "verify_sheets.py",
-        ROOT / "verify_sheets2.py", ROOT / "update_gs.py",
-        ROOT / "run_full_pipeline.py",
-        ROOT / "src/exporters/google_sheets_exporter.py",
         ROOT / "tools/filter_sheet_by_standards.py",
         ROOT / "tools/migrate_to_txt_schema.py",
     ]

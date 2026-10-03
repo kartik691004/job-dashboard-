@@ -16,9 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --no-cache-dir -r requirements.txt
 
 # Copy application source code
-COPY app/main.py /app/app/main.py
-COPY src/ /app/src/
-COPY n8n/ /app/n8n/
+COPY app/ /app/app/
 COPY index.html README.md /app/
 
 # Create directories for runtime data
