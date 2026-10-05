@@ -32,7 +32,7 @@ NON-GOALS / SAFETY RULES (precision-first, preserved from earlier phases):
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 # ── Google Forms ─────────────────────────────────────────────────────────────
 # Only genuine Google Form URLs count: docs.google.com/forms/... or the
@@ -564,6 +564,89 @@ _SIGNATURE_TITLE_RE = re.compile(
     re.IGNORECASE,
 )
 _SIGNATURE_CONTACT_RE = re.compile(r"@|\+?\d[\d\s\-]{7,}\d|📞|📧")
+
+
+# ── Phase 38: explicit hiring-manager context ("reports to / working with") ──
+# Explicit person-attribution cues only. "We're hiring" / "my company is
+# hiring" are hiring SIGNALS for the gates — deliberately NOT here: they name
+# no person, and this extractor's output is a NAME attribution.
+# Non-colon cues end with \s+ so the whitespace between the cue and the name
+# is consumed before the capture group (otherwise [A-Z] can never match).
+# Sentence punctuation after the cue ("reports to. Name") correctly fails.
+_HM_REPORTS_TO_RE = re.compile(
+    r"(?:reports?\s+(?:directly\s+)?to\s+|"
+    r"works?\s+(?:directly\s+)?with\s+|"
+    r"working\s+(?:directly\s+)?with\s+|"
+    r"will\s+work\s+(?:directly\s+)?with\s+|"
+    r"you['\u2019]?ll?\s+work\s+(?:directly\s+)?with\s+|"
+    r"will\s+report\s+(?:directly\s+)?to\s+|"
+    r"will\s+partner\s+with\s+|"
+    r"in\s+partnership\s+with\s+|"
+    r"reach\s+out\s+to\s+|"
+    r"contact\s+person:\s*|"
+    r"point\s+of\s+contact:\s*|"
+    r"hiring\s+manager:\s*|"
+    r"contact\s+)"
+    r"([A-Z][A-Za-z'\-]+(?:\s+[A-Z][A-Za-z'\-]+){1,2})",
+    re.IGNORECASE,
+)
+
+
+class _HiringContext(NamedTuple):
+    """Explicit hiring-manager context found in scraped text.
+
+    `name` is "" when no explicit cue exists. `evidence` is a short verbatim
+    snippet; "" when no name. The URL is filled by the caller from the same
+    text — this extractor never fabricates one.
+    """
+    name: str = ""
+    role: str = ""
+    evidence: str = ""
+
+
+def extract_hm_context(text: str) -> _HiringContext:
+    """Explicit hiring-manager context from scraped post/job-title text.
+
+    Matches ONLY explicit person-attribution cues ("reports to X", "working
+    with X", "reach out to X", "contact person: X", "point of contact: X").
+    Job titles and hiring language provide the CONTEXT around such cues but
+    never identify a person on their own. Company-like candidates (LLP/Pvt
+    Ltd/&/Inc) and ALL-CAPS strings are rejected; a role tail
+    (", Head of Analytics") is captured separately and never becomes the
+    name. Never fabricates a URL; the caller attaches a literal /in/ URL when
+    one exists in the same text.
+    """
+    if not text:
+        return _HiringContext()
+    for m in _HM_REPORTS_TO_RE.finditer(text):
+        name = " ".join(m.group(1).split())
+        if len(name) < 4:
+            continue
+        # Greedy capture may grab trailing lowercase words ("Rahul Sharma
+        # regarding") — trim them, then require a proper capitalized name.
+        # This also rejects lowercase phrases ("the team", "us for details")
+        # that IGNORECASE lets into the capture.
+        words = name.split()
+        while words and not words[-1][:1].isupper():
+            words.pop()
+        if len(words) < 2 or not all(w[:1].isupper() for w in words):
+            continue
+        name = " ".join(words)
+        # Company-like candidates are never a person.
+        if re.search(r"\b(?:LLP|Pvt|Private|Limited|Ltd|Inc|LLC|Corp|Co\.|&|and\s+Co)\b",
+                     name, re.IGNORECASE):
+            continue
+        # ALL-CAPS strings ("WE ARE HIRING") are not proper names.
+        if name.isupper():
+            continue
+        # Capture an optional role tail from the original match context.
+        after = text[m.end(1):m.end(1) + 60]
+        role_m = re.match(r"\s*,\s*([A-Z][^,.;\n)]{2,50})", after)
+        role = role_m.group(1).strip() if role_m else ""
+        snippet = re.sub(r"\s+", " ",
+                         text[max(0, m.start() - 20):m.end(1) + (len(role) + 2 if role else 0)]).strip()[:160]
+        return _HiringContext(name=name, role=role, evidence=snippet)
+    return _HiringContext()
 
 
 def extract_named_founder(text: str) -> Tuple[str, str]:

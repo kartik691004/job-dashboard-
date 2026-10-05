@@ -9,6 +9,33 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from app.models import ClassifiedPost
 from app.llm.schemas import LLM_NON_EVALUATED
 
+
+HIRING_MANAGER_EMPTY = ""
+# Phase 38: display cells carry NO placeholders. An unverified hiring-manager
+# (internal Unclear/Not Found/Unknown/N/A/None/blank) displays as an empty
+# cell — the production gate reads the INTERNAL field, never this cell, so
+# blanking is a presentation fix only and never relaxes eligibility.
+HIRING_MANAGER_NOT_AVAILABLE = ""
+
+# Case-insensitive set of internal HM sentinel values that must never reach a
+# display cell (spec: never "Unclear"/"Unknown"/"Not Found"/"N/A"/"None").
+_HM_MISSING_SENTINELS = frozenset({
+    "", "unclear", "not available", "not found", "unknown",
+    "n/a", "na", "none", "null", "-", "ambiguous",
+})
+
+
+def _hm_display(value: Any) -> str:
+    """Verified HM value verbatim; any missing/placeholder sentinel → "".
+
+    Display-only mapping (Phase 38): the internal resolution state on the
+    ClassifiedPost is untouched, so the production gate keeps operating on
+    the internal verification state, not the blanked cell.
+    """
+    text = str(value or "").strip()
+    return "" if text.lower() in _HM_MISSING_SENTINELS else text
+
+
 # The 23-column layout (19 original txt-spec columns + 4 Phase-16 columns
 # APPENDED at the end). Single source of truth: _ensure_headers verifies
 # against it and the one-time migration tool writes it.
@@ -414,8 +441,13 @@ class SheetsWriter:
             post.exact_role,
             post.ctc,
             post.cold_email,
-            post.hiring_manager_name,
-            post.hiring_manager_linkedin,
+            # Hiring Manager Name (Phase 38): verified name verbatim; ANY
+            # sentinel (Unclear/Not Found/Unknown/N/A/None/blank) displays as
+            # an empty cell. The gate still sees the internal value, so this
+            # is a presentation change only.
+            _hm_display(post.hiring_manager_name),
+            # Hiring Manager LinkedIn (Phase 38): same rule as the name cell.
+            _hm_display(post.hiring_manager_linkedin),
             post.source_link,
             post.description,
             post.confidence,

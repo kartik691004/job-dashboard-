@@ -50,6 +50,7 @@ from app.extraction import (
     clean_company_candidate,
     extract_apply_link,
     extract_google_form_url,
+    extract_hm_context,
     extract_is_hiring_company,
     extract_named_founder,
     extract_recruiter_signature,
@@ -134,6 +135,17 @@ def _is_person_profile_url(url) -> bool:
     if "linkedin.com/in/" in u or "/in/" in u:
         return True
     return False
+
+
+# Phase 38: literal /in/ LinkedIn profile URL captured verbatim from scraped
+# post text. Only the FIRST literal /in/ URL in the full post is used as the
+# hiring-manager profile — never fabricated, never a /company/ URL, never a
+# guess from a name. If no /in/ URL appears in the text the cell stays
+# "Unclear" (which _build_row then blanks to "").
+_LINKEDIN_IN_RE = re.compile(
+    r"https?://(?:www\.|in\.)?linkedin\.com/in/[A-Za-z0-9\-\u2010\u2011\u2012\u2013\u2014\u2015_]+",
+    re.IGNORECASE,
+)
 
 
 def _distinct_employers(text):
@@ -1129,53 +1141,71 @@ class DeterministicClassifier:
             else:
                 emp_type = "Unclear"
 
-        # Hiring Manager (Phase 16): tiered, evidence-recorded, never inferred
-        # from company-page authorship, never from seekers/reposts.
-        #   Tier A: explicitly named founder/leader ("my co-founder Rishi Jain")
-        #   Tier B: recruiter/TA signature block with contact ("Pooja Rani |
-        #           Manager – Talent Acquisition" + phone/email)
-        #   Tier C: first-person hiring evidence + PERSON author ("I'm hiring",
-        #           "we're hiring", "we are seeking", "my/our team")
-        # A company-page author (/company/ URL) is NEVER the manager; LinkedIn
-        # URLs are only ever literal /in/ URLs from the post or the author's
+        # Hiring Manager (Phase 16 + Phase 38): tiered, evidence-recorded,
+        # never inferred from company-page authorship, never from seekers/reposts.
+        #   Tier A (Phase 38): explicit "reports to / works with / reach out to /
+        #        contact person: <Name>" + job title context.
+        #   Tier B: explicitly named founder/leader ("my co-founder Rishi Jain")
+        #   Tier C: recruiter/TA signature block with contact
+        #        ("Pooja Rani | Manager – Talent Acquisition" + phone/email)
+        #   Tier D: first-person hiring evidence + PERSON author ("I'm hiring",
+        #        "we're hiring", "we are seeking", "my/our team")
+        # Company-page author (/company/ URL) is NEVER the manager. LinkedIn URLs
+        # are only literal /in/ URLs from the full scraped text or the author's
         # own person-profile URL — never fabricated.
         hiring_manager_name = "Unclear"
         hiring_manager_linkedin = "Unclear"
         hiring_manager_evidence = ""
-        _named_founder, _founder_role = extract_named_founder(post.text)
-        _sig_name, _sig_title = extract_recruiter_signature(post.text)
-        if _named_founder:
-            hiring_manager_name = _named_founder
-            hiring_manager_linkedin = "Unclear"
-            hiring_manager_evidence = (
-                f"named in post: {_named_founder}"
-                + (f" ({_founder_role})" if _founder_role else "")
-            )
-        elif _sig_name:
-            hiring_manager_name = _sig_name
-            hiring_manager_linkedin = "Unclear"
-            hiring_manager_evidence = f"recruiter signature in post: {_sig_name} ({_sig_title})"
+        _hm_ctx = extract_hm_context(post.text)
+        if _hm_ctx.name:
+            hiring_manager_name = _hm_ctx.name
+            hiring_manager_evidence = _hm_ctx.evidence
+            # Phase 38 spec §5: a /in/ URL attaches ONLY when the same
+            # sentence explicitly ties it to the identified person — never
+            # the first /in/ URL found anywhere in the post.
+            _hm_link = ""
+            for _sent in re.split(r"(?<=[.!?])\s+|\n+", post.text):
+                if _hm_ctx.name in _sent:
+                    _link_m = _LINKEDIN_IN_RE.search(_sent)
+                    if _link_m:
+                        _hm_link = _link_m.group(0)
+                        break
+            hiring_manager_linkedin = _hm_link or "Unclear"
         else:
-            # First-person-SINGULAR ownership or own-team framing only. "We
-            # are hiring/seeking" (company voice) is deliberately excluded:
-            # the poster may be anyone sharing the company's vacancy (pinned
-            # by test_author_not_auto_hiring_manager at the enrichment layer,
-            # mirrored here). Plural seeking still counts as a hiring SIGNAL
-            # and employer-CONTEXT upstream — just not a name attribution.
-            hm_evidence = ["i'm hiring", "we're hiring", "i am hiring",
-                           "my team", "our team"]
-            if any(ev in text_norm for ev in hm_evidence):
-                # BUG B: a LinkedIn URL containing "/company/" identifies a
-                # COMPANY PAGE, never a person who is hiring. Only a person's
-                # "/in/..." profile URL may surface the author as manager.
-                if _is_person_profile_url(post.author_profile_url) and post.author_name:
-                    hiring_manager_name = post.author_name
-                    hiring_manager_linkedin = post.author_profile_url
-                    _hit = next((ev for ev in hm_evidence if ev in text_norm), "")
-                    hiring_manager_evidence = (
-                        f"author states hiring side: '{_hit}'" if _hit else
-                        "author states hiring side"
-                    )
+            _named_founder, _founder_role = extract_named_founder(post.text)
+            _sig_name, _sig_title = extract_recruiter_signature(post.text)
+            if _named_founder:
+                hiring_manager_name = _named_founder
+                hiring_manager_evidence = (
+                    f"named in post: {_named_founder}"
+                    + (f" ({_founder_role})" if _founder_role else "")
+                )
+            elif _sig_name:
+                hiring_manager_name = _sig_name
+                hiring_manager_evidence = (
+                    f"recruiter signature in post: {_sig_name} ({_sig_title})"
+                )
+            else:
+                # First-person-SINGULAR ownership or own-team framing only. "We
+                # are hiring/seeking" (company voice) is deliberately excluded:
+                # the poster may be anyone sharing the company's vacancy (pinned
+                # by test_author_not_auto_hiring_manager at the enrichment layer,
+                # mirrored here). Plural seeking still counts as a hiring SIGNAL
+                # and employer-CONTEXT upstream — just not a name attribution.
+                hm_evidence = ["i'm hiring", "we're hiring", "i am hiring",
+                               "my team", "our team"]
+                if any(ev in text_norm for ev in hm_evidence):
+                    # BUG B: a LinkedIn URL containing "/company/" identifies a
+                    # COMPANY PAGE, never a person who is hiring. Only a person's
+                    # "/in/..." profile URL may surface the author as manager.
+                    if _is_person_profile_url(post.author_profile_url) and post.author_name:
+                        hiring_manager_name = post.author_name
+                        hiring_manager_linkedin = post.author_profile_url
+                        _hit = next((ev for ev in hm_evidence if ev in text_norm), "")
+                        hiring_manager_evidence = (
+                            f"author states hiring side: '{_hit}'" if _hit else
+                            "author states hiring side"
+                        )
 
         # Description (Phase 16): FULL useful post text — the artificial
         # 403-char cap is removed. Whitespace-normalised, with Cold Email
